@@ -51,7 +51,7 @@ async function generateGameWorld(promptString) {
         const response = await fetch('http://127.0.0.1:8000/generate-world', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: promptString })
+            body: JSON.stringify({ prompt: promptString, player_name: playerName })
         });
         
         if (!response.ok) {
