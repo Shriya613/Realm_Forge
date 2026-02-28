@@ -11,8 +11,6 @@ MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 if not MISTRAL_API_KEY:
     raise ValueError("MISTRAL_API_KEY is not set in the environment.")
 
-client = Mistral(api_key=MISTRAL_API_KEY)
-
 # Pydantic models for validation
 class Faction(BaseModel):
     id: str
@@ -44,7 +42,7 @@ class Quest(BaseModel):
 class Boss(BaseModel):
     name: str
     description: str
-    faction_id: str
+    faction_id: Optional[str] = None
     base_difficulty: int
     adaptive_behavior: str
     weakness: str
@@ -70,6 +68,7 @@ async def generate_world(player_prompt: str) -> dict:
     Returns the world as a dictionary.
     """
     system_prompt = get_system_prompt()
+    client = Mistral(api_key=MISTRAL_API_KEY)
     
     response = await client.chat.complete_async(
         model="mistral-large-latest",
