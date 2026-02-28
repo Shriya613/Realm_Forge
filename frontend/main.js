@@ -1,11 +1,7 @@
-import Phaser from 'phaser';
-import WorldScene from './scenes/WorldScene.js';
-import UIScene from './scenes/UIScene.js';
-import { dummyWorld } from './api/worldApi.js';
-
-let playerName = "";
-let chosenPrompt = "";
-let isGameInitialized = false;
+let playerName = "Guest";
+let currentSessionId = "demo_session_" + Math.floor(Math.random() * 10000);
+let worldData = null;
+let currentRegionId = null;
 
 // DOM Elements
 const uiLayer = document.getElementById('ui-layer');
@@ -13,96 +9,214 @@ const loginScreen = document.getElementById('login-screen');
 const promptScreen = document.getElementById('prompt-screen');
 const loadingScreen = document.getElementById('loading-screen');
 const loadingStatus = document.getElementById('loading-status');
-const gameContainer = document.getElementById('game-container');
+const gameInterface = document.getElementById('game-interface');
 
-// Screen 1: Login
+// HUD
+const hudName = document.getElementById('hud-name');
+const hudXp = document.getElementById('hud-xp');
+const hudWorld = document.getElementById('hud-world');
+
+// Main Content
+const dynamicBg = document.getElementById('dynamic-bg');
+const regionsList = document.getElementById('regions-list');
+const currentRegionName = document.getElementById('current-region-name');
+const currentRegionDesc = document.getElementById('current-region-desc');
+const dmText = document.getElementById('dm-text');
+const actionButtons = document.getElementById('action-buttons');
+const imageLoader = document.getElementById('image-loading-spinner');
+
+// Default starting background (Cyber theme placeholder)
+dynamicBg.style.backgroundImage = "url('https://images.unsplash.com/photo-1601042879364-f3947d3f9c16?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80')";
+
+// --- FLOW 1: LOGIN ---
 document.getElementById('btn-next').addEventListener('click', () => {
     const nameInput = document.getElementById('char-name').value.trim();
     if (nameInput) {
-        playerName = nameInput;
-        // Switch to Prompt Screen
+        playerName = nameInput.toUpperCase();
+        hudName.innerText = playerName;
         loginScreen.classList.remove('active');
-        setTimeout(() => promptScreen.classList.add('active'), 400); // 400ms CSS transition
+        setTimeout(() => promptScreen.classList.add('active'), 400); 
     } else {
-        alert("Please enter a character name to begin your journey.");
+        alert("Enter your callsign protocol.");
     }
 });
 
-// Screen 2: Prompt
+// --- FLOW 2: PROMPT ---
 document.getElementById('btn-generate').addEventListener('click', async () => {
     const promptInput = document.getElementById('world-prompt').value.trim();
     if (promptInput) {
-        chosenPrompt = promptInput;
-        // Switch to Loading Screen
         promptScreen.classList.remove('active');
         setTimeout(() => {
             loadingScreen.classList.add('active');
-            loadingStatus.innerText = "Forging a brand new realm from your words...";
-            generateGameWorld(chosenPrompt);
+            loadingStatus.innerText = "The Architect is building reality clusters from the prompt...";
+            generateWorld(promptInput);
         }, 400);
     } else {
-        alert("Please describe the world you want to conquer.");
+        alert("Define the simulation parameters.");
     }
 });
 
-async function generateGameWorld(promptString) {
+// --- API: Generate World ---
+async function generateWorld(promptString) {
     try {
-        // Backend API Call
         const response = await fetch('http://127.0.0.1:8000/generate-world', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: promptString, player_name: playerName })
+            body: JSON.stringify({ prompt: promptString, player_name: playerName, session_id: currentSessionId })
         });
         
-        if (!response.ok) {
-            throw new Error(`Server returned ${response.status}`);
-        }
+        if (!response.ok) throw new Error("Server Error");
         
         const data = await response.json();
-        const generatedWorld = data.data; // Pydantic JSON dump
+        worldData = data.data;
 
-        loadingStatus.innerText = "Realm assembled! Transporting you now...";
+        loadingStatus.innerText = "Nodes established. Connecting sensory link...";
         
         setTimeout(() => {
-            startGameEngine(generatedWorld);
+            enterGame();
         }, 1500);
 
     } catch (e) {
         console.error(e);
-        loadingStatus.innerText = "Dark magic interfered! Falling back to backup realm...";
-        
-        // Fallback to our dummy JSON
-        setTimeout(() => {
-            startGameEngine(dummyWorld);
-        }, 1500);
+        loadingStatus.innerText = "Connection lost. Using localized backup matrix...";
+        // For hackathon fallback: Implement fallback logic if needed
     }
 }
 
-function startGameEngine(worldData) {
-    // Hide UI Layer, Show Game
+// --- ENTER DOM GAME ---
+function enterGame() {
     uiLayer.classList.remove('active');
+    
+    // Play sci-fi background track
+    const bgm = document.getElementById('bg-music');
+    if (bgm) {
+        bgm.volume = 0.3;
+        bgm.play().catch(e => console.log("Audio play blocked", e));
+    }
+    
     setTimeout(() => {
-        uiLayer.style.display = 'none';
-        gameContainer.classList.add('visible');
+        uiLayer.classList.add('hidden');
+        gameInterface.classList.remove('hidden');
+        hudWorld.innerText = worldData.world_name.toUpperCase();
+        
+        renderRegions();
     }, 500);
+}
 
-    if (isGameInitialized) return;
+function renderRegions() {
+    regionsList.innerHTML = "";
+    worldData.regions.forEach(region => {
+        const btn = document.createElement('div');
+        btn.className = 'region-btn';
+        btn.innerHTML = `
+            <span class="region-name">${region.name}</span>
+            <span class="region-diff">DANGER: ${region.difficulty}</span>
+        `;
+        
+        btn.addEventListener('click', () => {
+            // Remove active from others
+            document.querySelectorAll('.region-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectRegion(region);
+        });
+        
+        regionsList.appendChild(btn);
+    });
+}
+
+function selectRegion(region) {
+    currentRegionId = region.id;
+    currentRegionName.innerText = region.name.toUpperCase();
+    currentRegionDesc.innerText = region.description + "\n\nSTRATEGIC INTEL: " + region.strategic_value;
     
-    // Boot Phaser
-    const config = {
-        type: Phaser.AUTO,
-        width: 1024,
-        height: 768,
-        parent: 'game-container',
-        pixelArt: true,
-        backgroundColor: '#1b1626', // Updated to match space theme
+    // Reset Action Box
+    actionButtons.classList.remove('hidden');
+    dmText.innerHTML = "Node selected. Awaiting directive.";
+    dmText.style.color = "#00ffcc";
+
+    // Request dynamic background from HuggingFace
+    imageLoader.classList.remove('hidden');
+    dynamicBg.classList.remove('focus');
+    
+    const bgUrl = `http://127.0.0.1:8000/region-image?prompt=${encodeURIComponent(region.description)}`;
+    
+    const newBg = new Image();
+    newBg.src = bgUrl;
+    newBg.onload = () => {
+        dynamicBg.style.backgroundImage = `url('${bgUrl}')`;
+        dynamicBg.classList.add('focus');
+        imageLoader.classList.add('hidden');
     };
+    newBg.onerror = () => {
+        imageLoader.classList.add('hidden');
+    };
+}
 
-    const game = new Phaser.Game(config);
-    game.scene.add('WorldScene', WorldScene);
-    game.scene.add('UIScene', UIScene);
+// --- API: Actions ---
+document.querySelectorAll('.action-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        if(!currentRegionId) return;
+        const actionType = btn.getAttribute('data-action');
+        sendAction(actionType);
+    });
+});
+
+async function sendAction(actionStr) {
+    dmText.innerHTML = "Computing probabilities... Data stream active...";
+    dmText.style.color = "#8ab4f8";
+    actionButtons.classList.add('hidden'); // prevent double clicking
     
-    // Start WorldScene and pass the external data
-    game.scene.start('WorldScene', { worldData, playerName });
-    isGameInitialized = true;
+    try {
+        const response = await fetch('http://127.0.0.1:8000/action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: actionStr,
+                region_id: currentRegionId,
+                session_id: currentSessionId
+            })
+        });
+        
+        const data = await response.json();
+        actionButtons.classList.remove('hidden');
+
+        if (response.ok) {
+            let textColor = "#fff";
+            const dmResponse = data.response;
+            if(dmResponse.outcome === "failure") textColor = "#ff3333";
+            if(dmResponse.outcome === "success") textColor = "#00ffcc";
+            if(dmResponse.outcome === "partial") textColor = "#ffcc00";
+
+            dmText.innerText = dmResponse.narration;
+            dmText.style.color = textColor;
+            hudXp.innerText = data.xp;
+            
+            // Queue audio playback
+            playNarration(dmResponse.narration);
+        } else {
+            dmText.innerText = "Error: Architect connection refused.";
+        }
+    } catch(e) {
+        actionButtons.classList.remove('hidden');
+        dmText.innerText = "Critical Fault: Architect unreachable.";
+    }
+}
+
+async function playNarration(text) {
+    try {
+        const response = await fetch('http://127.0.0.1:8000/narration', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text })
+        });
+        
+        if (response.ok) {
+            const blob = await response.blob();
+            const audioUrl = URL.createObjectURL(blob);
+            const audio = new Audio(audioUrl);
+            audio.play();
+        }
+    } catch(e) {
+        console.error("Narration Audio Failed:", e);
+    }
 }
