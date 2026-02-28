@@ -12,11 +12,13 @@ export default class WorldScene extends Phaser.Scene {
         // No external assets for this mock though, we will use graphics
     }
 
-    create() {
-        this.worldData = dummyWorld;
+    create(data) {
+        // Initialize from API response or fallback data
+        this.worldData = data.worldData || dummyWorld;
+        this.playerName = data.playerName || "Hero";
         
         // Launch UI Scene passing world data
-        this.scene.launch('UIScene', { worldName: this.worldData.world_name });
+        this.scene.launch('UIScene', { worldName: this.worldData.world_name, playerName: this.playerName });
 
         // Draw basic lines representing paths
         const graphics = this.add.graphics();

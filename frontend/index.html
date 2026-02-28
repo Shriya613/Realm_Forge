@@ -7,6 +7,44 @@
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
+    <!-- Pre-Game UI Layout -->
+    <div id="ui-layer" class="active">
+      
+      <!-- Screen 1: Login / Character Name -->
+      <div id="login-screen" class="screen active">
+        <h1 class="logo glow">Realm Forge</h1>
+        <p class="subtitle">AI-Generated Team Conquest RPG</p>
+        
+        <div class="input-group">
+          <label for="char-name">Character Name</label>
+          <input type="text" id="char-name" placeholder="Enter your hero's name..." autocomplete="off">
+        </div>
+        
+        <button id="btn-next" class="primary-btn pulse">Begin Journey</button>
+      </div>
+
+      <!-- Screen 2: World Prompt -->
+      <div id="prompt-screen" class="screen">
+        <h2 class="prompt-title glow">Forge Your Realm</h2>
+        <p class="subtitle">Describe the world Mistral AI will build for you.</p>
+        
+        <div class="input-group">
+          <textarea id="world-prompt" rows="4" placeholder="e.g. A volcanic island ruled by pirate clans, theme of betrayal, medium difficulty..."></textarea>
+        </div>
+        
+        <button id="btn-generate" class="primary-btn">Generate World</button>
+      </div>
+
+      <!-- Screen 3: Loading / Generating -->
+      <div id="loading-screen" class="screen">
+        <h2 class="glow">Mistral is Weaving...</h2>
+        <p class="loading-text" id="loading-status">Generating map, factions, and lore</p>
+        <div class="spinner"></div>
+      </div>
+      
+    </div>
+
+    <!-- The actual game map container -->
     <div id="game-container"></div>
     <script type="module" src="/main.js"></script>
   </body>
