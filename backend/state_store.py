@@ -10,7 +10,16 @@ def create_session(session_id: str, world_data: dict, player_name: str):
     ACTIVE_SESSIONS[session_id] = {
         "world": world_data,
         "players": [
-            {"name": player_name, "role": "Warrior", "xp": 0}
+            {
+                "name": player_name, 
+                "role": "Cyber-Mercenary", 
+                "xp": 0,
+                "hp": 100,
+                "max_hp": 100,
+                "energy": 50,
+                "max_energy": 50,
+                "inventory": []
+            }
         ],
         "log": [],   # Action history for context
         "active_quests": [],

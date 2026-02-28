@@ -13,15 +13,17 @@ if not MISTRAL_API_KEY:
 
 class StateChanges(BaseModel):
     xp_gained: int
+    hp_delta: int = 0
+    energy_delta: int = 0
+    loot_dropped: list[str] = []
     region_status: Literal["conquered", "contested", "lost", "unchanged"]
     quest_triggered: Optional[str] = None
-    boss_modifier: Optional[str] = None
 
 class DMResponse(BaseModel):
     narration: str
     outcome: Literal["success", "partial", "failure"]
     state_changes: StateChanges
-    tone: Literal["epic", "tense", "mysterious", "humorous", "ominous"]
+    tone: Literal["epic", "tense", "mysterious", "humorous", "clinical"]
 
 def get_dm_system_prompt() -> str:
     prompt_path = os.path.join(os.path.dirname(__file__), "..", "prompts", "dm_system.txt")
@@ -35,8 +37,12 @@ async def process_action(action: str, current_state: dict) -> dict:
     system_prompt = get_dm_system_prompt()
     client = Mistral(api_key=MISTRAL_API_KEY)
     
+    state_to_serialize = current_state.copy()
+    if "log" in state_to_serialize and len(state_to_serialize["log"]) > 3:
+        state_to_serialize["log"] = state_to_serialize["log"][-3:]
+        
     # We serialize the current state to inject tightly into the user's prompt
-    state_context = json.dumps(current_state, indent=2)
+    state_context = json.dumps(state_to_serialize, indent=2)
     
     user_message = f"""
 Current Game State:

@@ -56,19 +56,30 @@
       <!-- Top HUD -->
       <header id="hud-top" class="glass-panel horizontal">
           <div class="stat">USER_ID: <span id="hud-name" class="highlight">Guest</span></div>
-          <div class="stat">SYNC_LEVEL: <span id="hud-xp" class="highlight">0</span></div>
+          <div class="stat">SYNC_LEVEL: <span id="hud-xp" class="highlight">0</span> XP</div>
+          <div class="stat">HP: <span id="hud-hp" class="highlight hp-text">100</span>/100</div>
+          <div class="stat">ENERGY: <span id="hud-energy" class="highlight energy-text">50</span>/50</div>
           <div class="stat">REALITY_CORE: <span id="hud-world" class="highlight">Loading...</span></div>
           <div class="stat">STATUS: <span id="hud-status" class="status-ok">ONLINE</span></div>
       </header>
 
       <!-- Layout for Main interaction -->
       <div id="main-content">
-          <!-- Side Panel (Regions) -->
-          <aside id="regions-panel" class="glass-panel">
-            <h3 class="panel-header glow">LOCAL NODES</h3>
-            <p class="subtitle sm">Select a node to transfer your consciousness.</p>
-            <div id="regions-list"></div>
-          </aside>
+          <!-- Sidebar: Nodes & Inventory -->
+          <div class="sidebar-column">
+              <!-- Side Panel (Regions) -->
+              <aside id="regions-panel" class="glass-panel">
+                <h3 class="panel-header glow">LOCAL NODES</h3>
+                <p class="subtitle sm">Select a node to transfer your consciousness.</p>
+                <div id="regions-list"></div>
+              </aside>
+
+              <!-- Side Panel (Inventory) -->
+              <aside id="inventory-panel" class="glass-panel" style="margin-top: 20px;">
+                <h3 class="panel-header glow">HARDWARE / LOOT</h3>
+                <div id="inventory-list" class="subtitle sm">No hardware acquired.</div>
+              </aside>
+          </div>
 
           <!-- Main Dialogue / Focus Area -->
           <main id="interaction-area">
@@ -80,6 +91,19 @@
 
             <div class="spacer"></div>
 
+            <!-- Minigame Overlay (Hidden) -->
+            <div id="minigame-overlay" class="glass-panel hidden">
+                <h3 class="panel-header glow" style="color:#ff00cc; text-align:center;">HACKING MATRIX INITIATED</h3>
+                <p style="text-align:center; color:#fff;">Stop the cursor in the <span style="color:#00ff00;">GREEN ZONE</span> to breach security!</p>
+                <div id="hack-bar-container">
+                    <div id="hack-target-zone"></div>
+                    <div id="hack-cursor"></div>
+                </div>
+                <div style="text-align:center; margin-top: 20px;">
+                    <button id="btn-hack-stop" class="primary-btn" style="width: auto;">BREACH!</button>
+                </div>
+            </div>
+
             <!-- Dialogue Box -->
             <div id="dialogue-box" class="glass-panel chat-mode">
                 <h4 class="architect-title">THE ARCHITECT</h4>
@@ -87,7 +111,7 @@
                 
                 <div id="action-buttons" class="hidden">
                     <button class="action-btn" data-action="INVESTIGATE">INVESTIGATE</button>
-                    <button class="action-btn" data-action="HACK">HACK</button>
+                    <button class="action-btn" data-action="HACK">HACK (Minigame)</button>
                     <button class="action-btn" data-action="COMBAT">COMBAT</button>
                     <button class="action-btn" data-action="STEALTH">STEALTH</button>
                 </div>

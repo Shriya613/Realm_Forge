@@ -58,16 +58,69 @@ async def player_action(request: ActionRequest):
         
         dm_response = await process_action(contextual_action, session)
         
-        # Update our session with simple history and XP tracking
+        # Update our session with history, XP, HP, Energy and Loot tracking
         session['log'].append({"user": request.action, "dm": dm_response['narration']})
-        session['players'][0]['xp'] += dm_response['state_changes']['xp_gained']
-        if dm_response['state_changes']['region_status'] == "conquered":
+        
+        player = session['players'][0]
+        state_changes = dm_response['state_changes']
+        
+        player['xp'] += state_changes['xp_gained']
+        
+        # Adjust HP with bounds checking
+        player['hp'] = max(0, min(player['max_hp'], player['hp'] + state_changes['hp_delta']))
+        
+        # Adjust Energy with bounds checking
+        player['energy'] = max(0, min(player['max_energy'], player['energy'] + state_changes['energy_delta']))
+        
+        if state_changes['loot_dropped']:
+            player['inventory'].extend(state_changes['loot_dropped'])
+            
+        if state_changes['region_status'] == "conquered":
              session['conquered_regions'].append(request.region_id)
              
-        # Broadcast/save any state changes here
-        return {"status": "success", "response": dm_response, "xp": session['players'][0]['xp']}
+        # Return state changes locally to update HUD
+        return {
+            "status": "success", 
+            "response": dm_response, 
+            "xp": player['xp'],
+            "hp": player['hp'],
+            "energy": player['energy'],
+            "inventory": player['inventory']
+        }
     except Exception as e:
         logger.error(f"Error processing action: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+from backend.narration import generate_narration
+
+class NarrationRequest(BaseModel):
+    text: str
+    voice_id: str = "JBFqnCBcs6831ApcRzwK" # Very deep male cinematic voice
+
+@app.post("/narration", summary="Generate ElevenLabs Narration")
+async def get_narration(request: NarrationRequest):
+    try:
+        audio_bytes = generate_narration(request.text, request.voice_id)
+        return StreamingResponse(io.BytesIO(audio_bytes), media_type="audio/mpeg")
+    except Exception as e:
+        logger.error(f"Narration generation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+from fastapi.responses import StreamingResponse
+import io
+from backend.hf_image import generate_region_image
+
+@app.get("/region-image", summary="Generate a dynamic background image via HuggingFace")
+async def get_region_image(prompt: str):
+    """
+    Takes a region description and returns a generated HuggingFace image as JPEG byte stream.
+    Used dynamically via URL src by the frontend.
+    """
+    try:
+        image_bytes = await generate_region_image(prompt)
+        return StreamingResponse(io.BytesIO(image_bytes), media_type="image/jpeg")
+    except Exception as e:
+        logger.error(f"Image generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/")
