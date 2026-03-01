@@ -75,6 +75,20 @@
       
       <button id="btn-help" class="help-btn">?</button>
 
+      <!-- Multiplayer Panel -->
+      <div id="mp-panel" class="mp-panel glass-panel">
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <span style="color:#00ffcc; font-size:0.85em; letter-spacing:1px;">SESSION ID:</span>
+          <code id="mp-session-id" style="color:#fff; font-size:0.85em;"></code>
+          <button id="btn-copy-session" class="small-btn">📋 Copy</button>
+        </div>
+        <div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <input id="mp-join-input" type="text" placeholder="Paste session ID to join..." style="flex:1; padding:5px 8px; border-radius:4px; border:1px solid #00ffcc; background:#111; color:#fff; font-size:0.85em;">
+          <button id="btn-join-session" class="small-btn">Join</button>
+        </div>
+        <div id="mp-players-list" style="margin-top:8px; color:#8ab4f8; font-size:0.8em;">Players online: <span id="mp-player-count">1</span></div>
+      </div>
+
       <!-- Layout for Main interaction -->
       <div id="main-content">
           
@@ -124,15 +138,21 @@
                     <h4 class="architect-title">THE ARCHITECT</h4>
                     <div id="dm-text" class="dm-dialogue">Initialization complete. Select a node parameter to proceed.</div>
                     
-                    <div id="action-buttons" class="hidden">
-                        <button class="action-btn" data-action="INVESTIGATE">INVESTIGATE</button>
-                        <button class="action-btn" data-action="HACK">HACK (Minigame)</button>
-                        <button class="action-btn" data-action="COMBAT">COMBAT</button>
-                        <button class="action-btn" data-action="STEALTH">STEALTH</button>
+                    <div id="action-buttons">
+                        <!-- Dynamically populated by main.js based on Mistral's response -->
                     </div>
                 </div>
               </main>
           </div>
+      </div>
+
+      <!-- In-game chat / event feed -->
+      <div id="chat-panel" class="chat-panel glass-panel">
+        <div id="chat-feed"></div>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <input id="chat-input" type="text" placeholder="Send a message to co-op players..." style="flex:1; padding:6px 10px; border-radius:4px; border:1px solid #333; background:#111; color:#fff; font-size:0.85em;">
+          <button id="btn-chat-send" class="small-btn">Send</button>
+        </div>
       </div>
 
     </div>

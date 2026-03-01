@@ -294,3 +294,45 @@ h3.panel-header { font-family: 'Audiowide', cursive; color: #00ffcc; margin: 0 0
   display: flex; flex: 1; gap: 40px; width: 100%; opacity: 1;
   transition: opacity 0.5s ease;
 }
+
+/* Multiplayer Panel */
+.mp-panel {
+  position: absolute; top: 70px; right: 70px; z-index: 500;
+  padding: 12px 16px; border-radius: 10px; max-width: 380px;
+  font-family: 'Share Tech Mono', monospace;
+}
+
+.small-btn {
+  padding: 5px 12px; border-radius: 6px; border: 1px solid #00ffcc;
+  background: rgba(0,255,204,0.1); color: #00ffcc; cursor: pointer;
+  font-family: 'Share Tech Mono', monospace; font-size: 0.8em;
+  transition: all 0.2s;
+}
+.small-btn:hover { background: #00ffcc; color: #000; }
+
+/* Chat Panel */
+.chat-panel {
+  position: absolute; bottom: 20px; left: 50%;
+  transform: translateX(-50%); width: 500px; z-index: 500;
+  padding: 12px; border-radius: 10px;
+  font-family: 'Share Tech Mono', monospace;
+}
+
+#chat-feed {
+  max-height: 100px; overflow-y: auto; padding-right: 5px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+
+.chat-msg {
+  font-size: 0.8em; color: #ccc; padding: 3px 6px;
+  border-left: 2px solid #444; border-radius: 2px;
+}
+.chat-msg.system { color: #00ffcc; border-left-color: #00ffcc; }
+.chat-msg.peer-action { color: #ffcc00; border-left-color: #ffcc00; }
+
+/* Peer avatars */
+.avatar-entity.peer {
+  background: white; border: 2px solid #ff00cc;
+  box-shadow: 0 4px 10px rgba(255,0,204,0.4);
+}
+.avatar-entity.peer::after { content: "🤖"; }

@@ -1,11 +1,17 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import logging
+import io
+import json
 
 from backend.world_gen import generate_world
 from backend.game_logic import process_action
 from backend.state_store import create_session, get_session, update_session
+from backend.narration import generate_narration
+from backend.hf_image import generate_region_image
+from backend.ws_manager import manager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -56,20 +62,16 @@ async def player_action(request: ActionRequest):
         # Inject context for what region this action is aimed at
         contextual_action = f"Target Region ID: {request.region_id}. Action text: {request.action}"
         
-        dm_response = await process_action(contextual_action, session)
+        dm_response = await process_action(contextual_action, session, request.region_id)
         
-        # Update our session with history, XP, HP, Energy and Loot tracking
+        # Update session
         session['log'].append({"user": request.action, "dm": dm_response['narration']})
         
         player = session['players'][0]
         state_changes = dm_response['state_changes']
         
         player['xp'] += state_changes['xp_gained']
-        
-        # Adjust HP with bounds checking
         player['hp'] = max(0, min(player['max_hp'], player['hp'] + state_changes['hp_delta']))
-        
-        # Adjust Energy with bounds checking
         player['energy'] = max(0, min(player['max_energy'], player['energy'] + state_changes['energy_delta']))
         
         if state_changes['loot_dropped']:
@@ -78,24 +80,24 @@ async def player_action(request: ActionRequest):
         if state_changes['region_status'] == "conquered":
              session['conquered_regions'].append(request.region_id)
              
-        # Return state changes locally to update HUD
         return {
             "status": "success", 
             "response": dm_response, 
             "xp": player['xp'],
             "hp": player['hp'],
             "energy": player['energy'],
-            "inventory": player['inventory']
+            "inventory": player['inventory'],
+            "stage": dm_response.get("stage", "approach"),
+            "choices": dm_response.get("choices", [])
         }
     except Exception as e:
         logger.error(f"Error processing action: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-from backend.narration import generate_narration
 
 class NarrationRequest(BaseModel):
     text: str
-    voice_id: str = "JBFqnCBcs6831ApcRzwK" # Very deep male cinematic voice
+    voice_id: str = "JBFqnCBcs6831ApcRzwK"
 
 @app.post("/narration", summary="Generate ElevenLabs Narration")
 async def get_narration(request: NarrationRequest):
@@ -106,16 +108,9 @@ async def get_narration(request: NarrationRequest):
         logger.error(f"Narration generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-from fastapi.responses import StreamingResponse
-import io
-from backend.hf_image import generate_region_image
 
 @app.get("/region-image", summary="Generate a dynamic background image via HuggingFace")
 async def get_region_image(prompt: str):
-    """
-    Takes a region description and returns a generated HuggingFace image as JPEG byte stream.
-    Used dynamically via URL src by the frontend.
-    """
     try:
         image_bytes = await generate_region_image(prompt)
         return StreamingResponse(io.BytesIO(image_bytes), media_type="image/jpeg")
@@ -123,6 +118,65 @@ async def get_region_image(prompt: str):
         logger.error(f"Image generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ─── WEBSOCKET: MULTIPLAYER ────────────────────────────────────────────────
+class MovePayload(BaseModel):
+    x: float
+    y: float
+
+@app.websocket("/ws/{session_id}/{player_name}")
+async def websocket_endpoint(websocket: WebSocket, session_id: str, player_name: str):
+    await manager.connect(websocket, session_id, player_name)
+    logger.info(f"[WS] {player_name} joined session {session_id}")
+    
+    # Notify new player of who is already in the session
+    await websocket.send_text(json.dumps({
+        "type": "session_info",
+        "players": manager.get_players(session_id)
+    }))
+    
+    try:
+        while True:
+            raw = await websocket.receive_text()
+            data = json.loads(raw)
+            msg_type = data.get("type")
+
+            if msg_type == "move":
+                # Broadcast avatar position to other players
+                await manager.broadcast(session_id, {
+                    "type": "peer_move",
+                    "player": player_name,
+                    "x": data.get("x"),
+                    "y": data.get("y")
+                }, exclude=websocket)
+
+            elif msg_type == "action_narration":
+                # Broadcast Architect's narration to all players
+                await manager.broadcast(session_id, {
+                    "type": "action_narration",
+                    "player": player_name,
+                    "narration": data.get("narration"),
+                    "outcome": data.get("outcome"),
+                    "stage": data.get("stage")
+                }, exclude=websocket)
+
+            elif msg_type == "chat":
+                # Simple in-game chat relay
+                await manager.broadcast(session_id, {
+                    "type": "chat",
+                    "player": player_name,
+                    "message": data.get("message")
+                }, exclude=websocket)
+
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, session_id)
+        await manager.broadcast(session_id, {
+            "type": "player_left",
+            "player": player_name,
+            "players": manager.get_players(session_id)
+        })
+        logger.info(f"[WS] {player_name} disconnected from session {session_id}")
+
 @app.get("/")
 def read_root():
-    return {"message": "Realm Forge Backend is running!"}
+    return {"message": "Realm Forge API running. WebSocket: ws://localhost:8000/ws/{session_id}/{player_name}"}

@@ -124,8 +124,123 @@ function enterGame() {
         gameInterface.classList.remove('hidden');
         hudWorld.innerText = worldData.world_name.toUpperCase();
         
+        // Show session ID + initialize WebSocket
+        document.getElementById('mp-session-id').innerText = currentSessionId;
+        initWebSocket(currentSessionId);
+        
         setupMapEngine();
     }, 500);
+}
+
+// ─── MULTIPLAYER WEBSOCKET ─────────────────────────────────────────────────
+let ws = null;
+const peerAvatars = {}; // player_name -> DOM element
+
+function initWebSocket(sessionId) {
+    const wsUrl = `ws://127.0.0.1:8000/ws/${sessionId}/${encodeURIComponent(playerName)}`;
+    ws = new WebSocket(wsUrl);
+    
+    ws.onopen = () => {
+        addChatMsg(`Connected to session ${sessionId}`, 'system');
+    };
+
+    ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        
+        if (msg.type === 'session_info') {
+            document.getElementById('mp-player-count').innerText = msg.players.length;
+            addChatMsg(`Players in session: ${msg.players.join(', ')}`, 'system');
+        }
+        
+        if (msg.type === 'player_joined') {
+            document.getElementById('mp-player-count').innerText = msg.players.length;
+            addChatMsg(`${msg.player} has joined the simulation.`, 'system');
+        }
+        
+        if (msg.type === 'player_left') {
+            document.getElementById('mp-player-count').innerText = msg.players.length;
+            addChatMsg(`${msg.player} has disconnected.`, 'system');
+            // Remove their avatar
+            if (peerAvatars[msg.player]) {
+                peerAvatars[msg.player].remove();
+                delete peerAvatars[msg.player];
+            }
+        }
+        
+        if (msg.type === 'peer_move') {
+            // Render or update peer avatar on the overworld map
+            if (!peerAvatars[msg.player]) {
+                const av = document.createElement('div');
+                av.className = 'avatar-entity peer';
+                const lbl = document.createElement('span');
+                lbl.style.cssText = 'position:absolute; top:16px; font-size:9px; white-space:nowrap; color:#ff00cc;';
+                lbl.innerText = msg.player;
+                av.appendChild(lbl);
+                overworldMap.appendChild(av);
+                peerAvatars[msg.player] = av;
+            }
+            peerAvatars[msg.player].style.left = `${msg.x}%`;
+            peerAvatars[msg.player].style.top = `${msg.y}%`;
+        }
+        
+        if (msg.type === 'action_narration') {
+            addChatMsg(`[${msg.player}] ${msg.narration}`, 'peer-action');
+        }
+        
+        if (msg.type === 'chat') {
+            addChatMsg(`${msg.player}: ${msg.message}`, '');
+        }
+    };
+
+    ws.onclose = () => { addChatMsg('Connection lost.', 'system'); };
+    ws.onerror = (e) => console.log('[WS] Error:', e);
+}
+
+function wsSend(data) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(data));
+    }
+}
+
+function addChatMsg(text, cls = '') {
+    const chatFeed = document.getElementById('chat-feed');
+    if (!chatFeed) return;
+    const el = document.createElement('div');
+    el.className = `chat-msg ${cls}`;
+    el.innerText = text;
+    chatFeed.appendChild(el);
+    chatFeed.scrollTop = chatFeed.scrollHeight;
+}
+
+// Multiplayer UI controls
+document.getElementById('btn-copy-session').addEventListener('click', () => {
+    navigator.clipboard.writeText(currentSessionId);
+    document.getElementById('btn-copy-session').innerText = '✅ Copied!';
+    setTimeout(() => document.getElementById('btn-copy-session').innerText = '📋 Copy', 2000);
+});
+
+document.getElementById('btn-join-session').addEventListener('click', () => {
+    const newSessionId = document.getElementById('mp-join-input').value.trim();
+    if (newSessionId) {
+        currentSessionId = newSessionId;
+        document.getElementById('mp-session-id').innerText = currentSessionId;
+        if (ws) ws.close();
+        initWebSocket(currentSessionId);
+        addChatMsg(`Switched to session: ${newSessionId}`, 'system');
+    }
+});
+
+document.getElementById('btn-chat-send').addEventListener('click', () => sendChatMessage());
+document.getElementById('chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendChatMessage(); });
+
+function sendChatMessage() {
+    const input = document.getElementById('chat-input');
+    const msg = input.value.trim();
+    if (msg) {
+        addChatMsg(`${playerName}: ${msg}`, '');
+        wsSend({ type: 'chat', message: msg });
+        input.value = '';
+    }
 }
 
 // --- GAME MAP ENGINE ---
@@ -231,6 +346,9 @@ function gameLoop() {
         playerAvatar.style.left = `${playerPos.x}%`;
         playerAvatar.style.top = `${playerPos.y}%`;
         
+        // Broadcast position to co-op peers every frame
+        wsSend({ type: 'move', x: playerPos.x, y: playerPos.y });
+        
         // Move enemies
         enemies.forEach(en => {
             en.x += en.dx;
@@ -273,6 +391,9 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
 }
 
+// Stage badge rendering
+const stageLabels = { approach: "🔍 APPROACH", challenge: "⚔️ CHALLENGE", resolution: "🏆 RESOLUTION", complete: "✅ COMPLETE" };
+
 // --- NODE ENCOUNTERS ---
 function triggerNodeEncounter(region) {
     insideNode = true;
@@ -283,25 +404,23 @@ function triggerNodeEncounter(region) {
     regionEncounter.classList.remove('hidden');
     
     currentRegionName.innerText = region.name.toUpperCase();
-    currentRegionDesc.innerText = region.description + "\n\nSTRATEGIC INTEL: " + region.strategic_value;
+    currentRegionDesc.innerText = region.description;
     
-    actionButtons.classList.remove('hidden');
-    dmText.innerHTML = "Node breached. Awaiting deployment directive.";
-    dmText.style.color = "#00ffcc";
+    actionButtons.innerHTML = "";
+    dmText.innerHTML = "<em style='color:#8ab4f8'>Entering node... The Architect is observing.</em>";
+    dmText.style.color = "#8ab4f8";
 
     // Dynamic Image Fetch
     imageLoader.classList.remove('hidden');
     dynamicBg.classList.remove('focus');
     const bgUrl = `http://127.0.0.1:8000/region-image?prompt=${encodeURIComponent(region.description)}`;
-    
     const newBg = new Image();
     newBg.src = bgUrl;
-    newBg.onload = () => {
-        dynamicBg.style.backgroundImage = `url('${bgUrl}')`;
-        dynamicBg.classList.add('focus');
-        imageLoader.classList.add('hidden');
-    };
+    newBg.onload = () => { dynamicBg.style.backgroundImage = `url('${bgUrl}')`; dynamicBg.classList.add('focus'); imageLoader.classList.add('hidden'); };
     newBg.onerror = () => { imageLoader.classList.add('hidden'); };
+
+    // Kick off first beat of the story automatically
+    sendAction("Player enters the region and surveys the situation.");
 }
 
 btnLeaveNode.addEventListener('click', () => {
@@ -320,24 +439,49 @@ function triggerRandomEncounter() {
     sendAction("Player was ambushed by a roaming entity in the overworld while traveling.", "map_encounter");
 }
 
-// --- API: Actions ---
-document.querySelectorAll('.action-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        if(!currentRegionId) return;
-        const actionType = btn.getAttribute('data-action');
-        
-        if (actionType === "HACK") {
-            startMinigame();
-        } else {
-            sendAction(actionType);
-        }
-    });
-});
+// --- Dynamic Choice Buttons ---
+function renderChoices(choices, stage) {
+    actionButtons.innerHTML = "";
+    actionButtons.classList.remove('hidden');
 
-function startMinigame() {
+    // Stage badge
+    const badge = document.createElement('div');
+    badge.style.cssText = "color:#00ffcc; font-size:0.85em; margin-bottom:10px; letter-spacing:2px;";
+    badge.innerText = stageLabels[stage] || stage.toUpperCase();
+    actionButtons.appendChild(badge);
+
+    if (stage === "complete") {
+        const doneBtn = document.createElement('button');
+        doneBtn.className = 'action-btn';
+        doneBtn.innerText = '← Return to Map';
+        doneBtn.addEventListener('click', () => btnLeaveNode.click());
+        actionButtons.appendChild(doneBtn);
+        return;
+    }
+
+    choices.forEach(choice => {
+        const btn = document.createElement('button');
+        btn.className = 'action-btn';
+        btn.title = choice.description; // tooltip on hover
+        btn.innerText = choice.label;
+
+        // Intercept HACK choice for minigame
+        if (choice.label.toLowerCase().includes('hack') || choice.id === 'hack') {
+            btn.addEventListener('click', () => startMinigame(choice));
+        } else {
+            btn.addEventListener('click', () => sendAction(choice.label + ': ' + choice.description));
+        }
+        actionButtons.appendChild(btn);
+    });
+}
+
+// Keep minigame for HACK-labelled choices
+let pendingHackChoice = null;
+function startMinigame(choice) {
+    pendingHackChoice = choice;
     actionButtons.classList.add('hidden');
     minigameOverlay.classList.remove('hidden');
-    dmText.innerText = "Bypassing ICE... Sync your cycle to breach the node.";
+    dmText.innerText = "Bypassing ICE... Sync your cursor to the GREEN ZONE.";
     dmText.style.color = "#ff00cc";
     
     cursorPosition = 0;
@@ -353,11 +497,11 @@ btnHackStop.addEventListener('click', () => {
     clearInterval(minigameInterval);
     minigameOverlay.classList.add('hidden');
     actionButtons.classList.remove('hidden');
-    
+    const label = pendingHackChoice?.label || 'HACK';
     if(cursorPosition >= 40 && cursorPosition <= 60) {
-        sendAction("HACK with PERFECT stealth and critical breach, grabbing top-tier loot.");
+        sendAction(`${label}: Perfect stealth breach — critical success.`);
     } else {
-        sendAction("HACK violently, triggering alarms and risking taking heavy damage.");
+        sendAction(`${label}: Sloppy breach — alarms triggered, taking damage.`);
     }
 });
 
@@ -408,12 +552,18 @@ async function sendAction(actionStr, bypassRegionId = null) {
                 });
             }
             
-            // Screen Shake for combat damage
+            // Screen Shake for heavy damage
             if (dmResponse.state_changes.hp_delta < -10) {
                  dynamicBg.style.transform = "translateX(10px)";
                  setTimeout(() => dynamicBg.style.transform = "translateX(-10px)", 50);
                  setTimeout(() => dynamicBg.style.transform = "translateX(0)", 100);
             }
+            
+            // Render dynamic choices from Mistral's response
+            renderChoices(data.choices || [], data.stage || 'approach');
+            
+            // Broadcast narration to all co-op players
+            wsSend({ type: 'action_narration', narration: dmResponse.narration, outcome: dmResponse.outcome, stage: data.stage });
             
             playNarration(dmResponse.narration);
         } else {
