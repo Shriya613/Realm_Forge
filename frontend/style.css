@@ -223,3 +223,52 @@ h3.panel-header { font-family: 'Audiowide', cursive; color: #00ffcc; margin: 0 0
   background: #ff00cc; border-radius: 5px; box-shadow: 0 0 10px #ff00cc;
   left: 0%; /* Animated via JS */
 }
+
+/* Overworld Map */
+#overworld-map {
+  flex: 1; position: relative; width: 100%; height: 100%;
+  background-size: 60px 60px;
+  background-image: 
+      linear-gradient(to right, rgba(0, 255, 204, 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(0, 255, 204, 0.05) 1px, transparent 1px);
+  border: 1px solid rgba(0,255,204,0.3); border-radius: 12px;
+  overflow: hidden;
+  box-shadow: inset 0 0 50px rgba(0,0,0,0.8);
+  transition: opacity 0.5s ease;
+}
+
+.avatar-entity {
+  position: absolute; width: 24px; height: 24px;
+  border-radius: 50%; transform: translate(-50%, -50%);
+  display: flex; justify-content: center; align-items: center;
+}
+
+.avatar-entity.player {
+  background: radial-gradient(circle, #00ffcc, #0088ff);
+  box-shadow: 0 0 15px #00ffcc, 0 0 30px #00ffcc; z-index: 100;
+}
+
+.avatar-entity.enemy {
+  background: radial-gradient(circle, #ff3333, #aa0000);
+  box-shadow: 0 0 15px #ff3333; z-index: 90;
+}
+
+.overworld-node {
+  position: absolute; width: 60px; height: 60px;
+  background: rgba(0, 136, 255, 0.2); border: 2px dashed #0088ff;
+  border-radius: 50%; transform: translate(-50%, -50%);
+  display: flex; justify-content: center; align-items: center;
+  text-align: center; color: #fff; text-shadow: 0 0 5px #000;
+  font-family: 'Share Tech Mono', monospace; font-size: 11px;
+  box-shadow: 0 0 20px rgba(0, 136, 255, 0.4);
+}
+
+.overworld-node.active-hover {
+  background: rgba(0, 255, 204, 0.3); border-color: #00ffcc;
+  box-shadow: 0 0 30px #00ffcc;
+}
+
+#region-encounter {
+  display: flex; flex: 1; gap: 40px; width: 100%; opacity: 1;
+  transition: opacity 0.5s ease;
+}

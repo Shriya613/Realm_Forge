@@ -26,8 +26,19 @@
           <label>Identify Protocol</label>
           <input type="text" id="char-name" placeholder="Enter your callsign..." autocomplete="off">
         </div>
-        
         <button id="btn-next" class="primary-btn pulse">Link Core</button>
+      </div>
+
+      <!-- Screen 1.5: Rules -->
+      <div id="rules-screen" class="screen glass">
+        <h2 class="prompt-title glow">Simulation Directives</h2>
+        <div style="text-align:left; color:#ccc; line-height:1.6; margin-bottom:20px; font-size:1em;">
+          <p><strong style="color:#00ffcc;">OBJECTIVE:</strong> Traverse the generated overworld and conquer reality nodes.</p>
+          <p><strong style="color:#00ffcc;">MOVEMENT:</strong> Use <b>W, A, S, D</b> or Arrow Keys to move your avatar in the map.</p>
+          <p><strong style="color:#00ffcc;">INTERACTION:</strong> Walk over a Node and press <b>'E'</b> to enter it.</p>
+          <p><strong style="color:#00ffcc;">ENTITIES:</strong> Watch out for hostile Red Avatars roaming the map. They will intercept you!</p>
+        </div>
+        <button id="btn-accept-rules" class="primary-btn">Acknowledge</button>
       </div>
 
       <!-- Screen 2: World Prompt -->
@@ -38,7 +49,6 @@
         <div class="input-group">
           <textarea id="world-prompt" rows="4" placeholder="e.g. A dystopian cyberpunk megacity run by neon cartels and rogue AI..."></textarea>
         </div>
-        
         <button id="btn-generate" class="primary-btn">Engage Generators</button>
       </div>
 
@@ -65,58 +75,62 @@
 
       <!-- Layout for Main interaction -->
       <div id="main-content">
-          <!-- Sidebar: Nodes & Inventory -->
-          <div class="sidebar-column">
-              <!-- Side Panel (Regions) -->
-              <aside id="regions-panel" class="glass-panel">
-                <h3 class="panel-header glow">LOCAL NODES</h3>
-                <p class="subtitle sm">Select a node to transfer your consciousness.</p>
-                <div id="regions-list"></div>
-              </aside>
-
-              <!-- Side Panel (Inventory) -->
-              <aside id="inventory-panel" class="glass-panel" style="margin-top: 20px;">
-                <h3 class="panel-header glow">HARDWARE / LOOT</h3>
-                <div id="inventory-list" class="subtitle sm">No hardware acquired.</div>
-              </aside>
+          
+          <!-- OVERWORLD MAP (Full roaming grid) -->
+          <div id="overworld-map">
+              <div id="player-avatar" class="avatar-entity player"></div>
+              <!-- Regions and Enemies generated via JS -->
           </div>
 
-          <!-- Main Dialogue / Focus Area -->
-          <main id="interaction-area">
-            <div class="header-glass">
-                <h2 id="current-region-name" class="glow">Awaiting Deployment...</h2>
-                <p id="current-region-desc">Select a local node to warp to a new sector of reality.</p>
-                <div id="image-loading-spinner" class="spinner-small hidden"></div>
-            </div>
+          <!-- REGION ENCOUNTER VIEW (Hidden initially, active when inside a node) -->
+          <div id="region-encounter" class="hidden">
+              <!-- Sidebar: Nodes & Inventory -->
+              <div class="sidebar-column">
+                  <aside id="regions-panel" class="glass-panel">
+                    <h3 id="current-region-name" class="panel-header glow" style="font-size:1.8em;">NODE</h3>
+                    <p id="current-region-desc" class="subtitle sm">Select a local node to warp to a new sector of reality.</p>
+                    <div id="image-loading-spinner" class="spinner-small hidden"></div>
+                  </aside>
 
-            <div class="spacer"></div>
+                  <aside id="inventory-panel" class="glass-panel" style="margin-top: 20px;">
+                    <h3 class="panel-header glow">HARDWARE / LOOT</h3>
+                    <div id="inventory-list" class="subtitle sm">No hardware acquired.</div>
+                  </aside>
+                  
+                  <button id="btn-leave-node" class="primary-btn" style="margin-top:20px;">Exit Node (Map)</button>
+              </div>
 
-            <!-- Minigame Overlay (Hidden) -->
-            <div id="minigame-overlay" class="glass-panel hidden">
-                <h3 class="panel-header glow" style="color:#ff00cc; text-align:center;">HACKING MATRIX INITIATED</h3>
-                <p style="text-align:center; color:#fff;">Stop the cursor in the <span style="color:#00ff00;">GREEN ZONE</span> to breach security!</p>
-                <div id="hack-bar-container">
-                    <div id="hack-target-zone"></div>
-                    <div id="hack-cursor"></div>
-                </div>
-                <div style="text-align:center; margin-top: 20px;">
-                    <button id="btn-hack-stop" class="primary-btn" style="width: auto;">BREACH!</button>
-                </div>
-            </div>
+              <!-- Main Dialogue / Focus Area -->
+              <main id="interaction-area">
+                <div class="spacer"></div>
 
-            <!-- Dialogue Box -->
-            <div id="dialogue-box" class="glass-panel chat-mode">
-                <h4 class="architect-title">THE ARCHITECT</h4>
-                <div id="dm-text" class="dm-dialogue">Initialization complete. Select a node parameter to proceed.</div>
-                
-                <div id="action-buttons" class="hidden">
-                    <button class="action-btn" data-action="INVESTIGATE">INVESTIGATE</button>
-                    <button class="action-btn" data-action="HACK">HACK (Minigame)</button>
-                    <button class="action-btn" data-action="COMBAT">COMBAT</button>
-                    <button class="action-btn" data-action="STEALTH">STEALTH</button>
+                <!-- Minigame Overlay (Hidden) -->
+                <div id="minigame-overlay" class="glass-panel hidden">
+                    <h3 class="panel-header glow" style="color:#ff00cc; text-align:center;">HACKING MATRIX INITIATED</h3>
+                    <p style="text-align:center; color:#fff;">Stop the cursor in the <span style="color:#00ff00;">GREEN ZONE</span> to breach security!</p>
+                    <div id="hack-bar-container">
+                        <div id="hack-target-zone"></div>
+                        <div id="hack-cursor"></div>
+                    </div>
+                    <div style="text-align:center; margin-top: 20px;">
+                        <button id="btn-hack-stop" class="primary-btn" style="width: auto;">BREACH!</button>
+                    </div>
                 </div>
-            </div>
-          </main>
+
+                <!-- Dialogue Box -->
+                <div id="dialogue-box" class="glass-panel chat-mode">
+                    <h4 class="architect-title">THE ARCHITECT</h4>
+                    <div id="dm-text" class="dm-dialogue">Initialization complete. Select a node parameter to proceed.</div>
+                    
+                    <div id="action-buttons" class="hidden">
+                        <button class="action-btn" data-action="INVESTIGATE">INVESTIGATE</button>
+                        <button class="action-btn" data-action="HACK">HACK (Minigame)</button>
+                        <button class="action-btn" data-action="COMBAT">COMBAT</button>
+                        <button class="action-btn" data-action="STEALTH">STEALTH</button>
+                    </div>
+                </div>
+              </main>
+          </div>
       </div>
 
     </div>
