@@ -43,9 +43,17 @@ let cursorPosition = 0;
 let cursorDirection = 1;
 
 // Default starting background
-dynamicBg.style.backgroundImage = "url('https://images.unsplash.com/photo-1601042879364-f3947d3f9c16?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80')";
+dynamicBg.style.backgroundImage = "url('https://images.unsplash.com/photo-1518005020951-eccb494ad742?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80')";
 
 // --- FLOW: SCREENS ---
+const btnHelp = document.getElementById('btn-help');
+if (btnHelp) {
+    btnHelp.addEventListener('click', () => {
+        rulesScreen.classList.add('active');
+        uiLayer.classList.remove('hidden');
+        uiLayer.classList.add('active');
+    });
+}
 document.getElementById('btn-next').addEventListener('click', () => {
     const nameInput = document.getElementById('char-name').value.trim();
     if (nameInput) {
@@ -60,7 +68,13 @@ document.getElementById('btn-next').addEventListener('click', () => {
 
 document.getElementById('btn-accept-rules').addEventListener('click', () => {
     rulesScreen.classList.remove('active');
-    setTimeout(() => promptScreen.classList.add('active'), 400);
+    // If we've already generated a world, close uiLayer entirely. Otherwise, show prompt screen.
+    if (worldData) {
+        uiLayer.classList.remove('active');
+        setTimeout(() => uiLayer.classList.add('hidden'), 400);
+    } else {
+        setTimeout(() => promptScreen.classList.add('active'), 400);
+    }
 });
 
 document.getElementById('btn-generate').addEventListener('click', async () => {
@@ -124,16 +138,27 @@ let insideNode = false;
 const keys = { w: false, a: false, s: false, d: false };
 
 window.addEventListener('keydown', e => {
-    if (uiLayer.classList.contains('active') || insideNode) return;
-    const k = e.key.toLowerCase();
-    if(k === 'w' || e.key === 'ArrowUp') keys.w = true;
-    if(k === 'a' || e.key === 'ArrowLeft') keys.a = true;
-    if(k === 's' || e.key === 'ArrowDown') keys.s = true;
-    if(k === 'd' || e.key === 'ArrowRight') keys.d = true;
+    // Overworld movement inputs
+    if (!uiLayer.classList.contains('active') && !insideNode) {
+        const k = e.key.toLowerCase();
+        if(k === 'w' || e.key === 'ArrowUp') keys.w = true;
+        if(k === 'a' || e.key === 'ArrowLeft') keys.a = true;
+        if(k === 's' || e.key === 'ArrowDown') keys.s = true;
+        if(k === 'd' || e.key === 'ArrowRight') keys.d = true;
+        
+        if (e.key === 'e' || e.key === 'Enter') {
+            if (canEnterNode) {
+                triggerNodeEncounter(canEnterNode);
+            }
+        }
+    }
     
-    if (e.key === 'e' || e.key === 'Enter') {
-        if (canEnterNode) {
-            triggerNodeEncounter(canEnterNode);
+    // UI Global Nav
+    if (e.key === 'Escape') {
+        if (rulesScreen.classList.contains('active')) {
+            document.getElementById('btn-accept-rules').click();
+        } else if (insideNode) {
+            btnLeaveNode.click();
         }
     }
 });
@@ -286,7 +311,7 @@ btnLeaveNode.addEventListener('click', () => {
     overworldMap.classList.remove('hidden');
     
     dynamicBg.classList.remove('focus');
-    dynamicBg.style.backgroundImage = "url('https://images.unsplash.com/photo-1601042879364-f3947d3f9c16?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80')";
+    dynamicBg.style.backgroundImage = "url('https://images.unsplash.com/photo-1518005020951-eccb494ad742?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80')";
 });
 
 function triggerRandomEncounter() {

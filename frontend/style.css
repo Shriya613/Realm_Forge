@@ -238,20 +238,36 @@ h3.panel-header { font-family: 'Audiowide', cursive; color: #00ffcc; margin: 0 0
 }
 
 .avatar-entity {
-  position: absolute; width: 24px; height: 24px;
+  position: absolute; width: 32px; height: 32px;
   border-radius: 50%; transform: translate(-50%, -50%);
   display: flex; justify-content: center; align-items: center;
+  font-size: 24px; z-index: 100;
+  transition: top 0.1s linear, left 0.1s linear;
 }
 
 .avatar-entity.player {
-  background: radial-gradient(circle, #00ffcc, #0088ff);
-  box-shadow: 0 0 15px #00ffcc, 0 0 30px #00ffcc; z-index: 100;
+  background: white; border: 2px solid #00ffcc;
+  box-shadow: 0 4px 10px rgba(0,255,204,0.4); 
 }
+.avatar-entity.player::after { content: "🦊"; }
 
 .avatar-entity.enemy {
-  background: radial-gradient(circle, #ff3333, #aa0000);
-  box-shadow: 0 0 15px #ff3333; z-index: 90;
+  background: white; border: 2px solid #ff3333;
+  box-shadow: 0 4px 10px rgba(255,51,51,0.4); 
 }
+.avatar-entity.enemy::after { content: "👾"; }
+
+/* Interactive Help Button */
+.help-btn {
+  position: absolute; top: 15px; right: 20px; z-index: 999;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9); color: #222;
+  font-family: 'Share Tech Mono', monospace; font-size: 24px; font-weight: bold;
+  border: 2px solid #00ffcc; cursor: pointer; box-shadow: 0 0 15px rgba(0,255,204,0.5);
+  display: flex; justify-content: center; align-items: center; transition: all 0.2s ease;
+}
+.help-btn:hover { background: #00ffcc; transform: scale(1.1); }
+
 
 .overworld-node {
   position: absolute; width: 60px; height: 60px;

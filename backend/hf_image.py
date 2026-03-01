@@ -20,7 +20,7 @@ async def generate_region_image(prompt: str) -> bytes:
     
     headers = {"Authorization": f"Bearer {hf_token}"}
     
-    enhanced_prompt = f"cyberpunk, sci-fi landscape, conceptual art, vivid, masterpiece, 8k resolution, highly detailed, {prompt}"
+    enhanced_prompt = f"cute cartoon art style, neat and clean, colorful fantasy adventure, vibrant and beautiful landscape, masterpiece visualization, {prompt}"
     
     # We offload requests to avoid blocking the FastAPI thread
     loop = asyncio.get_event_loop()
