@@ -73,6 +73,12 @@ h1.logo, h2.prompt-title, h4.architect-title {
 }
 h2 { font-family: 'Audiowide', cursive; color: #00ffcc; }
 
+#rules-screen {
+  z-index: 1000;
+  position: absolute;
+}
+
+.prompt-title { color: #fff; font-size: 2em; margin-bottom: 10px; letter-spacing: 1px;}
 .subtitle { color: #8ab4f8; font-size: 1.1em; margin-bottom: 30px; letter-spacing: 1px;}
 .subtitle.sm { font-size: 0.9em; margin-bottom: 15px;}
 .loading-text { color: #8ab4f8; margin-bottom: 20px; font-family: 'Share Tech Mono', monospace; }
