@@ -25,6 +25,19 @@ const dmText = document.getElementById('dm-text');
 const actionButtons = document.getElementById('action-buttons');
 const imageLoader = document.getElementById('image-loading-spinner');
 
+// RPG Stats
+const hudHp = document.getElementById('hud-hp');
+const hudEnergy = document.getElementById('hud-energy');
+const inventoryList = document.getElementById('inventory-list');
+
+// Minigame
+const minigameOverlay = document.getElementById('minigame-overlay');
+const cursor = document.getElementById('hack-cursor');
+const btnHackStop = document.getElementById('btn-hack-stop');
+let minigameInterval;
+let cursorPosition = 0;
+let cursorDirection = 1;
+
 // Default starting background (Cyber theme placeholder)
 dynamicBg.style.backgroundImage = "url('https://images.unsplash.com/photo-1601042879364-f3947d3f9c16?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80')";
 
@@ -157,8 +170,46 @@ document.querySelectorAll('.action-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         if(!currentRegionId) return;
         const actionType = btn.getAttribute('data-action');
-        sendAction(actionType);
+        
+        if (actionType === "HACK") {
+            startMinigame();
+        } else {
+            sendAction(actionType);
+        }
     });
+});
+
+function startMinigame() {
+    actionButtons.classList.add('hidden');
+    minigameOverlay.classList.remove('hidden');
+    dmText.innerText = "Bypassing ICE... Sync your cycle to breach the node.";
+    dmText.style.color = "#ff00cc";
+    
+    // Simple pendulum loop
+    cursorPosition = 0;
+    cursorDirection = 2; // speed
+    minigameInterval = setInterval(() => {
+        cursorPosition += cursorDirection;
+        if(cursorPosition > 95 || cursorPosition < 0) {
+            cursorDirection *= -1;
+        }
+        cursor.style.left = `${cursorPosition}%`;
+    }, 20);
+}
+
+btnHackStop.addEventListener('click', () => {
+    clearInterval(minigameInterval);
+    minigameOverlay.classList.add('hidden');
+    actionButtons.classList.remove('hidden');
+    
+    // Check if within green zone (roughly 40% to 60%)
+    if(cursorPosition >= 40 && cursorPosition <= 60) {
+        // Critical success
+        sendAction("HACK with PERFECT stealth and critical breach, grabbing top-tier loot.");
+    } else {
+        // Failure or messy
+        sendAction("HACK violently, triggering alarms and risking taking heavy damage.");
+    }
 });
 
 async function sendAction(actionStr) {
