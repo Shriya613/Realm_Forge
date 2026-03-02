@@ -6,6 +6,7 @@ let worldData = null;
 let currentRegionId = null;
 let enemySprites = [];   // active MapSprite instances on the overworld
 let sfxLibrary = {};     // pre-generated SFX base64 map
+let voiceEnabled = false; // OFF by default — saves ElevenLabs credits
 
 // DOM Elements
 const uiLayer = document.getElementById('ui-layer');
@@ -346,6 +347,29 @@ function addChatMsg(text, cls = '') {
 const chatSidebar = document.getElementById('chat-sidebar');
 const btnToggleChat = document.getElementById('btn-toggle-chat');
 const btnVoice = document.getElementById('btn-voice');
+
+// ── Voice Toggle (ElevenLabs credit gate) ────────────────────────────
+const btnVoiceToggle = document.getElementById('btn-voice-toggle');
+if (btnVoiceToggle) {
+    btnVoiceToggle.addEventListener('click', () => {
+        voiceEnabled = !voiceEnabled;
+        if (voiceEnabled) {
+            btnVoiceToggle.textContent = '🔊 VOICE: ON';
+            btnVoiceToggle.style.color = '#00ffcc';
+            btnVoiceToggle.style.borderColor = '#00ffcc';
+            btnVoiceToggle.style.background = 'rgba(0,255,204,0.1)';
+            btnVoiceToggle.style.textShadow = '0 0 6px #00ffcc';
+            addChatMsg('🔊 Voice narration ON — ElevenLabs credits will be used.', 'system');
+        } else {
+            btnVoiceToggle.textContent = '🔇 VOICE: OFF';
+            btnVoiceToggle.style.color = '#666';
+            btnVoiceToggle.style.borderColor = '#444';
+            btnVoiceToggle.style.background = 'rgba(255,255,255,0.05)';
+            btnVoiceToggle.style.textShadow = 'none';
+            addChatMsg('🔇 Voice narration OFF — credits saved.', 'system');
+        }
+    });
+}
 let chatCollapsed = false;
 let voiceActive = false;
 let mediaRecorder = null;
@@ -788,16 +812,17 @@ async function sendAction(actionStr, bypassRegionId = null) {
 }
 
 async function playNarration(text) {
+    // Guard — ElevenLabs credits only spent when voice is ON
+    if (!voiceEnabled) return;
     try {
         const response = await fetch('http://127.0.0.1:8000/narration', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text: text })
         });
-        
+
         if (response.ok) {
             const blob = await response.blob();
-            // Verify we actually got audio bytes, not a JSON error
             if (!blob.type.includes('audio')) {
                 const errText = await blob.text();
                 console.warn('[Narration] Unexpected response type:', blob.type, errText);
@@ -805,10 +830,9 @@ async function playNarration(text) {
             }
             const audioUrl = URL.createObjectURL(blob);
             const audio = new Audio(audioUrl);
-            audio.onended = () => URL.revokeObjectURL(audioUrl); // cleanup memory
+            audio.onended = () => URL.revokeObjectURL(audioUrl);
             await audio.play();
         } else {
-            // Parse error body for debugging
             const errBody = await response.text();
             console.warn(`[Narration] ${response.status} error:`, errBody);
             if (response.status === 401) {
