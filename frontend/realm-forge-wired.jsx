@@ -344,7 +344,7 @@ function ChoiceButton({ choice, onClick }) {
 // ── NODE ENCOUNTER (wired to real /action) ─────────────────
 function NodeEncounter({ node, faction, sessionId, playerStats, onComplete, onFail, onExit }) {
   const [stage, setStage]         = useState("approach");
-  const [turnCount, setTurnCount] = useState(0);   // 0 = pre-first-choice
+  const turnRef                   = useRef(0);   // use ref so closure always reads latest value
   const [narration, setNarration] = useState(`You approach ${node.name}. The ${faction?.name || "enemy"} watches.`);
   const [choices, setChoices]     = useState([
     { id: "a", label: "Scout ahead quietly", description: "Observe the enemy before committing" },
@@ -355,19 +355,26 @@ function NodeEncounter({ node, faction, sessionId, playerStats, onComplete, onFa
   const [outcome, setOutcome]     = useState(null);
   const [conquered, setConquered] = useState(false);
   const [currentHp, setCurrentHp] = useState(playerStats.hp);
-  const pendingComplete           = useRef(null);
+  const completionData            = useRef(null);
 
-  const STAGES    = ["approach", "challenge", "complete"];
+  const STAGES     = ["approach", "challenge", "complete"];
   const stageLabel = { approach: "APPROACH", challenge: "CHALLENGE", complete: "COMPLETE" };
   const outcomeColor = { success: "#00ffcc", partial: "#ffcc00", failure: "#ff4444" };
+
+  // Auto-fire onComplete once conquered flag flips
+  useEffect(() => {
+    if (!conquered || !completionData.current) return;
+    const t = setTimeout(() => onComplete(completionData.current), 1800);
+    return () => clearTimeout(t);
+  }, [conquered]);
 
   async function handleChoice(choice) {
     if (loading || conquered) return;
     setLoading(true);
     setOutcome(null);
 
-    const thisTurn = turnCount + 1;   // 1-indexed turn number sent to the AI
-    setTurnCount(thisTurn);
+    turnRef.current += 1;
+    const thisTurn = turnRef.current;
 
     try {
       // ── WIRE YOUR MISTRAL /action CALL HERE ─────────────
@@ -375,62 +382,74 @@ function NodeEncounter({ node, faction, sessionId, playerStats, onComplete, onFa
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          // Include current stage + turn so the DM knows when to conclude
           action: `[Stage: ${stage}, Turn ${thisTurn}/3] ${choice.label}: ${choice.description || ""}`,
           region_id: node.id,
           session_id: sessionId,
         }),
       });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      const dm         = data.response;
-      const newHp      = data.hp ?? currentHp;
-      const newStage   = data.stage ?? stage;
+
+      // Guard: data.response may be absent on backend error
+      const dm       = data.response || {};
+      const newHp    = data.hp ?? currentHp;
+      const newStage = data.stage ?? stage;
       const newChoices = (data.choices || []).map(c => ({
         id: c.id, label: c.label, description: c.description || "",
       }));
-
-      setCurrentHp(newHp);
-      setNarration(dm.narration);
-      setOutcome(dm.outcome);
       // ─────────────────────────────────────────────────────
 
+      setCurrentHp(newHp);
+      if (dm.narration) setNarration(dm.narration);
+      setOutcome(dm.outcome || null);
+
       if (data.defeated) {
-        setTimeout(() => onFail({ nodeId: node.id, xpLost: 10 }), 1200);
         setLoading(false);
+        setTimeout(() => onFail({ nodeId: node.id, xpLost: 10 }), 1200);
         return;
       }
 
-      // Encounter ends when:
-      //  • backend explicitly says "complete"
-      //  • OR we've reached Turn 3 (safety: prevents infinite loops)
-      const isComplete = newStage === "complete" || thisTurn >= 3;
+      // End when: backend says complete OR resolution (AI sometimes uses it),
+      // OR safety net after Turn 3 — whichever comes first.
+      const isComplete =
+        newStage === "complete" ||
+        newStage === "resolution" ||
+        thisTurn >= 3;
 
       if (isComplete) {
-        setStage("complete");
-        setConquered(true);
-        setChoices([]);
-        pendingComplete.current = {
-          xp: dm.state_changes?.xp_gained || 30,
-          hp_delta: dm.state_changes?.hp_delta || 0,
-          nodeId: node.id,
+        completionData.current = {
+          xp:       dm.state_changes?.xp_gained ?? 30,
+          hp_delta: dm.state_changes?.hp_delta   ?? 0,
+          nodeId:   node.id,
         };
+        setStage("complete");
+        setChoices([]);
+        setConquered(true);   // ← triggers the useEffect above
       } else {
         setStage(newStage);
         if (newChoices.length > 0) setChoices(newChoices);
       }
-    } catch {
-      setNarration("Connection lost. The Architect is unreachable.");
-      setOutcome("failure");
-    }
-    setLoading(false);
-  }
 
-  function handleContinue() {
-    if (pendingComplete.current) onComplete(pendingComplete.current);
+    } catch (err) {
+      // On any network / parse error, still honour turn-3 safety
+      if (turnRef.current >= 3) {
+        completionData.current = { xp: 20, hp_delta: 0, nodeId: node.id };
+        setStage("complete");
+        setChoices([]);
+        setConquered(true);
+      } else {
+        setNarration("The Architect's signal flickers. Try again.");
+        setOutcome("partial");
+      }
+    }
+
+    setLoading(false);
   }
 
   const hpPct   = Math.max(0, (currentHp / playerStats.maxHp) * 100);
   const hpColor = hpPct > 50 ? "#00ff88" : hpPct > 25 ? "#ffcc00" : "#ff4444";
+  const dotStage = conquered ? "complete" : stage;
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)",
@@ -449,7 +468,7 @@ function NodeEncounter({ node, faction, sessionId, playerStats, onComplete, onFa
             </div>
             <div style={{ fontFamily: "monospace", fontSize: 11,
               color: conquered ? "#00ff88" : outcomeColor[outcome] || "#555", letterSpacing: 2 }}>
-              ◆ {conquered ? "CONQUERED" : outcome ? outcome.toUpperCase() : stageLabel[stage]}
+              ◆ {conquered ? "CONQUERED" : outcome ? outcome.toUpperCase() : stageLabel[stage] || stage.toUpperCase()}
             </div>
             <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7, color: hpColor }}>HP</span>
@@ -477,7 +496,7 @@ function NodeEncounter({ node, faction, sessionId, playerStats, onComplete, onFa
             : narration}
         </div>
 
-        {/* Choices OR continue button */}
+        {/* Choices — hidden once conquered */}
         {!loading && !conquered && choices.length > 0 && (
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {choices.map(c => (
@@ -486,26 +505,22 @@ function NodeEncounter({ node, faction, sessionId, playerStats, onComplete, onFa
           </div>
         )}
 
-        {!loading && conquered && (
-          <button onClick={handleContinue} style={{
-            fontFamily: "'Press Start 2P', monospace", fontSize: 9,
-            background: "transparent", border: "2px solid #00ff88", color: "#00ff88",
-            padding: "12px 28px", cursor: "pointer", borderRadius: 4,
-            boxShadow: "0 0 20px #00ff8844", letterSpacing: 2,
-          }}
-            onMouseEnter={e => e.currentTarget.style.background = "#00ff8814"}
-            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-          >CLAIM NODE →</button>
+        {/* Conquered: auto-advancing indicator */}
+        {conquered && (
+          <div style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 8,
+            color: "#00ff88", letterSpacing: 2, animation: "toastIn 0.4s ease-out" }}>
+            NODE SECURED — returning to map...
+          </div>
         )}
 
         {/* Stage dots */}
         <div style={{ display: "flex", gap: 8, marginTop: 18, alignItems: "center" }}>
           {STAGES.map((s, i) => {
-            const currentIdx = STAGES.indexOf(stage);
+            const currentIdx = STAGES.indexOf(dotStage);
             return (
               <div key={s} style={{ width: 7, height: 7, borderRadius: "50%", transition: "all 0.3s",
-                background: s === stage ? (conquered ? "#00ff88" : "#00ffcc") : currentIdx > i ? "#00ffcc33" : "#1a1a1a",
-                boxShadow: s === stage ? `0 0 8px ${conquered ? "#00ff88" : "#00ffcc"}` : "none" }} />
+                background: s === dotStage ? (conquered ? "#00ff88" : "#00ffcc") : currentIdx > i ? "#00ffcc33" : "#1a1a1a",
+                boxShadow: s === dotStage ? `0 0 8px ${conquered ? "#00ff88" : "#00ffcc"}` : "none" }} />
             );
           })}
           <span style={{ fontFamily: "monospace", fontSize: 9, color: "#333", marginLeft: 6 }}>
