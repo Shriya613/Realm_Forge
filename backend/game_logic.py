@@ -77,7 +77,8 @@ async def _call_mistral_with_retry(messages: list) -> str:
     response = await client.chat.complete_async(
         model="ministral-8b-latest",
         messages=messages,
-        response_format={"type": "json_object"}
+        response_format={"type": "json_object"},
+        max_tokens=400   # 2 sentences + 3 choices + state_changes fits in ~300 tokens
     )
     return response.choices[0].message.content
 
