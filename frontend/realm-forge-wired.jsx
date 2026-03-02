@@ -313,68 +313,96 @@ function MapNode({ region, faction, isConquered, isAvailable, isLocked, isActive
 function ChoiceButton({ choice, onClick }) {
   const [hovered, setHovered] = useState(false);
   return (
-    <div style={{ position: "relative", display: "inline-block" }}>
-      {hovered && choice.description && (
-        <div style={{
-          position: "absolute", bottom: "calc(100% + 8px)", left: "50%",
-          transform: "translateX(-50%)", whiteSpace: "nowrap",
-          background: "rgba(0,0,0,0.95)", border: "1px solid #00ffcc44",
-          padding: "6px 12px", borderRadius: 4, zIndex: 999,
-          fontFamily: "monospace", fontSize: 11, color: "#aaa",
-          pointerEvents: "none", lineHeight: 1.4,
-          boxShadow: "0 0 12px #00ffcc11",
-        }}>{choice.description}</div>
-      )}
+    <div style={{ position: "relative", display: "inline-flex", flexDirection: "column", alignItems: "stretch" }}>
       <button
         onClick={onClick}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         style={{
-          fontFamily: "'Press Start 2P', monospace", fontSize: 8, padding: "10px 16px",
+          fontFamily: "'Press Start 2P', monospace", fontSize: 8, padding: "10px 18px",
           background: hovered ? "#00ffcc1a" : "transparent",
-          border: "1px solid #00ffcc", color: "#00ffcc",
-          cursor: "pointer", borderRadius: 4, transition: "all 0.15s", letterSpacing: 1,
-          boxShadow: hovered ? "0 0 12px #00ffcc33" : "none",
+          border: `1px solid ${hovered ? "#00ffcc" : "#00ffcc88"}`,
+          color: "#00ffcc", cursor: "pointer", borderRadius: 4,
+          transition: "all 0.15s", letterSpacing: 1,
+          boxShadow: hovered ? "0 0 16px #00ffcc44, inset 0 0 8px #00ffcc0a" : "none",
         }}
       >{choice.label}</button>
+
+      {/* Hint card — slides in below the button on hover */}
+      {hovered && choice.description && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0,
+          background: "linear-gradient(135deg, rgba(0,255,204,0.07), rgba(6,8,20,0.98))",
+          border: "1px solid #00ffcc33",
+          borderTop: "2px solid #00ffcc",
+          borderRadius: "0 0 4px 4px",
+          padding: "8px 10px",
+          zIndex: 999, pointerEvents: "none",
+          animation: "toastIn 0.15s ease-out",
+          minWidth: 140,
+        }}>
+          <div style={{
+            fontFamily: "'Press Start 2P', monospace", fontSize: 6,
+            color: "#00ffcc99", letterSpacing: 2, marginBottom: 5,
+          }}>HINT</div>
+          <div style={{
+            fontFamily: "'Courier New', monospace", fontSize: 11,
+            color: "#ccc", lineHeight: 1.55,
+            whiteSpace: "normal", wordBreak: "break-word",
+          }}>{choice.description}</div>
+        </div>
+      )}
     </div>
   );
 }
 
-// ── NODE ENCOUNTER (wired to real /action) ─────────────────
+const MAX_TURNS = 7;
+
+// ── NODE ENCOUNTER — 7-turn arc ────────────────────────────
 function NodeEncounter({ node, faction, sessionId, playerStats, onComplete, onFail, onExit }) {
+  const turnRef                   = useRef(0);
+  const [displayTurn, setDisplayTurn] = useState(0);
   const [stage, setStage]         = useState("approach");
-  const turnRef                   = useRef(0);   // use ref so closure always reads latest value
-  const [narration, setNarration] = useState(`You approach ${node.name}. The ${faction?.name || "enemy"} watches.`);
+  const [narration, setNarration] = useState(
+    `You approach ${node.name}. The ${faction?.name || "enemy"} watches your every move.`
+  );
   const [choices, setChoices]     = useState([
-    { id: "a", label: "Scout ahead quietly", description: "Observe the enemy before committing" },
-    { id: "b", label: "Charge in boldly",    description: "Aggressive direct frontal approach" },
-    { id: "c", label: "Send a decoy first",  description: "Misdirect attention before striking" },
+    { id: "a", label: "Scout ahead quietly", description: "Observe before committing" },
+    { id: "b", label: "Charge in boldly",    description: "Aggressive direct approach" },
+    { id: "c", label: "Send a decoy first",  description: "Misdirect the enemy" },
   ]);
   const [loading, setLoading]     = useState(false);
   const [outcome, setOutcome]     = useState(null);
   const [conquered, setConquered] = useState(false);
+  const [failed, setFailed]       = useState(false);
   const [currentHp, setCurrentHp] = useState(playerStats.hp);
   const completionData            = useRef(null);
 
-  const STAGES     = ["approach", "challenge", "complete"];
-  const stageLabel = { approach: "APPROACH", challenge: "CHALLENGE", complete: "COMPLETE" };
   const outcomeColor = { success: "#00ffcc", partial: "#ffcc00", failure: "#ff4444" };
 
-  // Auto-fire onComplete once conquered flag flips
+  // Auto-fire callbacks after final narration is read (1.8s delay)
   useEffect(() => {
-    if (!conquered || !completionData.current) return;
-    const t = setTimeout(() => onComplete(completionData.current), 1800);
-    return () => clearTimeout(t);
+    if (conquered && completionData.current) {
+      const t = setTimeout(() => onComplete(completionData.current), 1800);
+      return () => clearTimeout(t);
+    }
   }, [conquered]);
 
+  useEffect(() => {
+    if (failed) {
+      const t = setTimeout(() => onFail({ nodeId: node.id, xpLost: 15 }), 1800);
+      return () => clearTimeout(t);
+    }
+  }, [failed]);
+
   async function handleChoice(choice) {
-    if (loading || conquered) return;
+    if (loading || conquered || failed) return;
     setLoading(true);
     setOutcome(null);
 
     turnRef.current += 1;
     const thisTurn = turnRef.current;
+    setDisplayTurn(thisTurn);
 
     try {
       // ── WIRE YOUR MISTRAL /action CALL HERE ─────────────
@@ -382,16 +410,13 @@ function NodeEncounter({ node, faction, sessionId, playerStats, onComplete, onFa
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: `[Stage: ${stage}, Turn ${thisTurn}/3] ${choice.label}: ${choice.description || ""}`,
+          action: `[Turn ${thisTurn}/${MAX_TURNS}] ${choice.label}: ${choice.description || ""}`,
           region_id: node.id,
           session_id: sessionId,
         }),
       });
-
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-
-      // Guard: data.response may be absent on backend error
+      const data     = await res.json();
       const dm       = data.response || {};
       const newHp    = data.hp ?? currentHp;
       const newStage = data.stage ?? stage;
@@ -404,43 +429,47 @@ function NodeEncounter({ node, faction, sessionId, playerStats, onComplete, onFa
       if (dm.narration) setNarration(dm.narration);
       setOutcome(dm.outcome || null);
 
-      if (data.defeated) {
+      // Mid-encounter defeat: HP hits 0
+      if (data.defeated || newHp <= 0) {
+        setChoices([]);
+        setFailed(true);
         setLoading(false);
-        setTimeout(() => onFail({ nodeId: node.id, xpLost: 10 }), 1200);
         return;
       }
 
-      // End when: backend says complete OR resolution (AI sometimes uses it),
-      // OR safety net after Turn 3 — whichever comes first.
-      const isComplete =
-        newStage === "complete" ||
-        newStage === "resolution" ||
-        thisTurn >= 3;
-
-      if (isComplete) {
-        completionData.current = {
-          xp:       dm.state_changes?.xp_gained ?? 30,
-          hp_delta: dm.state_changes?.hp_delta   ?? 0,
-          nodeId:   node.id,
-        };
+      // End of 7 turns
+      if (thisTurn >= MAX_TURNS || newStage === "complete" || newStage === "resolution") {
         setStage("complete");
         setChoices([]);
-        setConquered(true);   // ← triggers the useEffect above
+        // Win if player survived with HP > 15, otherwise it's a defeat
+        const didWin = newHp > 15 && dm.outcome !== "failure";
+        if (didWin) {
+          completionData.current = {
+            xp:       (dm.state_changes?.xp_gained ?? 0) + 50,  // bonus XP for completing 7 turns
+            hp_delta: dm.state_changes?.hp_delta ?? 0,
+            nodeId:   node.id,
+          };
+          setConquered(true);
+        } else {
+          setFailed(true);
+        }
       } else {
         setStage(newStage);
         if (newChoices.length > 0) setChoices(newChoices);
       }
 
-    } catch (err) {
-      // On any network / parse error, still honour turn-3 safety
-      if (turnRef.current >= 3) {
+    } catch {
+      if (turnRef.current >= MAX_TURNS) {
+        // Safety: force end on network error at last turn
         completionData.current = { xp: 20, hp_delta: 0, nodeId: node.id };
         setStage("complete");
         setChoices([]);
         setConquered(true);
       } else {
-        setNarration("The Architect's signal flickers. Try again.");
+        setNarration("The Architect's signal flickers. Choose again.");
         setOutcome("partial");
+        turnRef.current -= 1;   // don't count the failed turn
+        setDisplayTurn(turnRef.current);
       }
     }
 
@@ -449,14 +478,16 @@ function NodeEncounter({ node, faction, sessionId, playerStats, onComplete, onFa
 
   const hpPct   = Math.max(0, (currentHp / playerStats.maxHp) * 100);
   const hpColor = hpPct > 50 ? "#00ff88" : hpPct > 25 ? "#ffcc00" : "#ff4444";
-  const dotStage = conquered ? "complete" : stage;
+  const turnColor = displayTurn >= 6 ? "#ff4444" : displayTurn >= 4 ? "#ffcc00" : "#00ffcc";
+  const isOver  = conquered || failed;
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)",
       display: "flex", alignItems: "center", justifyContent: "center", zIndex: 500, padding: "0 20px" }}>
       <div style={{ width: "min(880px, 96vw)", background: "rgba(6,8,20,0.98)",
-        border: "1px solid #00ffcc22", borderRadius: 8, padding: "26px 30px",
-        boxShadow: "0 0 48px rgba(0,255,204,0.08)" }}>
+        border: `1px solid ${conquered ? "#00ff8822" : failed ? "#ff444422" : "#00ffcc22"}`,
+        borderRadius: 8, padding: "26px 30px",
+        boxShadow: `0 0 48px ${conquered ? "rgba(0,255,136,0.08)" : failed ? "rgba(255,68,68,0.08)" : "rgba(0,255,204,0.08)"}` }}>
 
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
@@ -466,10 +497,11 @@ function NodeEncounter({ node, faction, sessionId, playerStats, onComplete, onFa
               textShadow: "0 0 8px #00ffcc", marginBottom: 5 }}>
               {faction?.name?.toUpperCase() || node.name.toUpperCase()}
             </div>
-            <div style={{ fontFamily: "monospace", fontSize: 11,
-              color: conquered ? "#00ff88" : outcomeColor[outcome] || "#555", letterSpacing: 2 }}>
-              ◆ {conquered ? "CONQUERED" : outcome ? outcome.toUpperCase() : stageLabel[stage] || stage.toUpperCase()}
+            <div style={{ fontFamily: "monospace", fontSize: 11, letterSpacing: 2,
+              color: conquered ? "#00ff88" : failed ? "#ff4444" : outcomeColor[outcome] || "#555" }}>
+              ◆ {conquered ? "CONQUERED" : failed ? "DEFEATED" : outcome ? outcome.toUpperCase() : stage.toUpperCase()}
             </div>
+            {/* HP bar */}
             <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7, color: hpColor }}>HP</span>
               <div style={{ flex: 1, height: 6, background: "#111", borderRadius: 3, overflow: "hidden" }}>
@@ -487,17 +519,17 @@ function NodeEncounter({ node, faction, sessionId, playerStats, onComplete, onFa
 
         {/* Narration */}
         <div style={{ fontFamily: "'Courier New', monospace", fontSize: 14.5, lineHeight: 1.75,
-          color: conquered ? "#ccffee" : outcome === "failure" ? "#ff8888" : outcome === "success" ? "#ccffee" : "#ddd",
+          color: conquered ? "#ccffee" : failed ? "#ff8888" : outcome === "failure" ? "#ff8888" : outcome === "success" ? "#ccffee" : "#ddd",
           marginBottom: 22, minHeight: 76,
-          borderLeft: `3px solid ${conquered ? "#00ff88" : outcomeColor[outcome] || "#00ffcc33"}`,
+          borderLeft: `3px solid ${conquered ? "#00ff88" : failed ? "#ff4444" : outcomeColor[outcome] || "#00ffcc33"}`,
           paddingLeft: 16 }}>
           {loading
             ? <span style={{ color: "#444" }}>The Architect deliberates...</span>
             : narration}
         </div>
 
-        {/* Choices — hidden once conquered */}
-        {!loading && !conquered && choices.length > 0 && (
+        {/* Choices */}
+        {!loading && !isOver && choices.length > 0 && (
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {choices.map(c => (
               <ChoiceButton key={c.id} choice={c} onClick={() => handleChoice(c)} />
@@ -505,28 +537,57 @@ function NodeEncounter({ node, faction, sessionId, playerStats, onComplete, onFa
           </div>
         )}
 
-        {/* Conquered: auto-advancing indicator */}
-        {conquered && (
+        {/* End state messages */}
+        {!loading && conquered && (
           <div style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 8,
-            color: "#00ff88", letterSpacing: 2, animation: "toastIn 0.4s ease-out" }}>
+            color: "#00ff88", letterSpacing: 2 }}>
             NODE SECURED — returning to map...
           </div>
         )}
+        {!loading && failed && (
+          <div style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 8,
+            color: "#ff4444", letterSpacing: 2 }}>
+            DEFEATED — retreating to map...
+          </div>
+        )}
 
-        {/* Stage dots */}
-        <div style={{ display: "flex", gap: 8, marginTop: 18, alignItems: "center" }}>
-          {STAGES.map((s, i) => {
-            const currentIdx = STAGES.indexOf(dotStage);
-            return (
-              <div key={s} style={{ width: 7, height: 7, borderRadius: "50%", transition: "all 0.3s",
-                background: s === dotStage ? (conquered ? "#00ff88" : "#00ffcc") : currentIdx > i ? "#00ffcc33" : "#1a1a1a",
-                boxShadow: s === dotStage ? `0 0 8px ${conquered ? "#00ff88" : "#00ffcc"}` : "none" }} />
-            );
-          })}
-          <span style={{ fontFamily: "monospace", fontSize: 9, color: "#333", marginLeft: 6 }}>
-            {stageLabel[stage] || stage.toUpperCase()}
-          </span>
+        {/* Turn progress bar + counter */}
+        <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7, color: "#333" }}>TURN</span>
+            <div style={{ flex: 1, height: 4, background: "#0a0a0a", borderRadius: 2, overflow: "hidden" }}>
+              <div style={{
+                height: "100%",
+                width: `${(displayTurn / MAX_TURNS) * 100}%`,
+                background: conquered ? "#00ff88" : failed ? "#ff4444" : `linear-gradient(90deg, #00ffcc, ${turnColor})`,
+                borderRadius: 2, transition: "width 0.4s ease-out, background 0.4s",
+              }} />
+            </div>
+            <span style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7, color: turnColor,
+              minWidth: 36, textAlign: "right" }}>
+              {displayTurn}/{MAX_TURNS}
+            </span>
+          </div>
+          {/* 7 dots */}
+          <div style={{ display: "flex", gap: 6 }}>
+            {Array.from({ length: MAX_TURNS }, (_, i) => {
+              const dot = i + 1;
+              const done = dot <= displayTurn;
+              const current = dot === displayTurn;
+              return (
+                <div key={i} style={{
+                  width: 7, height: 7, borderRadius: "50%", transition: "all 0.3s",
+                  background: done
+                    ? (conquered ? "#00ff88" : failed && current ? "#ff4444" : "#00ffcc33")
+                    : "#111",
+                  boxShadow: current && !isOver ? `0 0 8px ${turnColor}` : "none",
+                  border: current && !isOver ? `1px solid ${turnColor}` : "1px solid transparent",
+                }} />
+              );
+            })}
+          </div>
         </div>
+
       </div>
     </div>
   );
