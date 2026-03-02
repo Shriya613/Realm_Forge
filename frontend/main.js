@@ -7,6 +7,9 @@ let currentRegionId = null;
 let enemySprites = [];   // active MapSprite instances on the overworld
 let sfxLibrary = {};     // pre-generated SFX base64 map
 let voiceEnabled = false; // OFF by default — saves ElevenLabs credits
+let isMultiplayer = false;
+let nodeTimerInterval = null;
+let nodeTimeRemaining = 600;
 
 // DOM Elements
 const uiLayer = document.getElementById('ui-layer');
@@ -114,8 +117,28 @@ document.getElementById('btn-next').addEventListener('click', () => {
     }
 });
 
+// Lobby: Single Player
+const btnSolo = document.getElementById('btn-solo');
+if (btnSolo) {
+    btnSolo.addEventListener('click', () => {
+        isMultiplayer = false;
+        currentSessionId = "solo_" + Math.floor(Math.random() * 10000);
+        document.getElementById('mp-session-id').innerText = currentSessionId;
+        
+        // Hide multiplayer UI
+        const chatSidebar = document.getElementById('chat-sidebar');
+        if (chatSidebar) chatSidebar.style.display = 'none';
+        const mpBadge = document.querySelector('.mp-badge');
+        if (mpBadge) mpBadge.style.display = 'none';
+        
+        lobbyScreen.classList.remove('active');
+        setTimeout(() => rulesScreen.classList.add('active'), 400);
+    });
+}
+
 // Lobby: Create new session
 document.getElementById('btn-create-session').addEventListener('click', () => {
+    isMultiplayer = true;
     lobbyScreen.classList.remove('active');
     setTimeout(() => rulesScreen.classList.add('active'), 400);
 });
@@ -124,6 +147,7 @@ document.getElementById('btn-create-session').addEventListener('click', () => {
 document.getElementById('btn-join-lobby').addEventListener('click', () => {
     const joinId = document.getElementById('join-session-input').value.trim();
     if (joinId) {
+        isMultiplayer = true;
         currentSessionId = joinId;
         document.getElementById('mp-session-id').innerText = currentSessionId;
         lobbyScreen.classList.remove('active');
@@ -370,12 +394,13 @@ if (btnVoiceToggle) {
         }
     });
 }
-let chatCollapsed = false;
+let chatCollapsed = true;
 let voiceActive = false;
 let mediaRecorder = null;
 let audioChunks = [];
 
 // Collapse/expand chat
+btnToggleChat.innerText = '▶';
 btnToggleChat.addEventListener('click', () => {
     chatCollapsed = !chatCollapsed;
     chatSidebar.classList.toggle('collapsed', chatCollapsed);
@@ -493,10 +518,14 @@ function setupMapEngine() {
     overworldMap.querySelectorAll('.overworld-node, .enemy').forEach(e => e.remove());
     enemies = [];
     
+    const totalNodes = worldData.regions.length;
+    const step = totalNodes > 1 ? 80 / (totalNodes - 1) : 40;
+    
     // Create Realm Nodes
     worldData.regions.forEach((region, index) => {
-        const mappedX = (Math.abs(region.position.x % 100)) || (15 + (index * 20) % 70);
-        const mappedY = (Math.abs(region.position.y % 100)) || (15 + (index * 30) % 70);
+        const mappedX = 10 + (index * step);
+        const mappedY = 50; 
+        
         region.renderX = mappedX;
         region.renderY = mappedY;
         
@@ -588,6 +617,54 @@ function gameLoop() {
 const stageLabels = { approach: "🔍 APPROACH", challenge: "⚔️ CHALLENGE", resolution: "🏆 RESOLUTION", complete: "✅ COMPLETE" };
 
 // --- NODE ENCOUNTERS ---
+function showTrophy(title, desc, isWorldVictory = false) {
+    const overlay = document.getElementById('trophy-overlay');
+    document.getElementById('trophy-title').innerText = title;
+    document.getElementById('trophy-desc').innerText = desc;
+    overlay.classList.remove('hidden');
+
+    const btn = document.getElementById('btn-trophy-continue');
+    btn.onclick = () => {
+        overlay.classList.add('hidden');
+        if (isWorldVictory) {
+            location.reload(); // Reload to start a new game/world
+        } else {
+            btnLeaveNode.click(); // Return to map
+        }
+    };
+}
+
+// --- Node Timer 10 minutes ---
+function startNodeTimer() {
+    clearInterval(nodeTimerInterval);
+    nodeTimeRemaining = 600; // 10 minutes in seconds
+    const timerEl = document.getElementById('node-timer');
+    timerEl.classList.remove('hidden');
+    updateNodeTimerDisplay(timerEl);
+    
+    nodeTimerInterval = setInterval(() => {
+        nodeTimeRemaining--;
+        updateNodeTimerDisplay(timerEl);
+        if (nodeTimeRemaining <= 0) {
+            clearInterval(nodeTimerInterval);
+            timerEl.innerText = "TIME OUT";
+            showTrophy("TIME EXPIRED", "You failed to secure the region in time. Retreating!", false);
+            setTimeout(() => { if (insideNode) btnLeaveNode.click(); }, 3000);
+        }
+    }, 1000);
+}
+
+function updateNodeTimerDisplay(el) {
+    const min = Math.floor(nodeTimeRemaining / 60);
+    const sec = nodeTimeRemaining % 60;
+    el.innerText = `${min}:${sec.toString().padStart(2, '0')}`;
+}
+
+function stopNodeTimer() {
+    clearInterval(nodeTimerInterval);
+    document.getElementById('node-timer').classList.add('hidden');
+}
+
 function triggerNodeEncounter(region) {
     insideNode = true;
     currentRegionId = region.id;
@@ -626,6 +703,9 @@ function triggerNodeEncounter(region) {
     // Play approach SFX
     playSFX('approach');
 
+    // Start round timer
+    startNodeTimer();
+
     sendAction("Player enters the region and surveys the situation.");
 }
 
@@ -637,25 +717,11 @@ btnLeaveNode.addEventListener('click', () => {
     
     dynamicBg.classList.remove('focus');
     dynamicBg.style.backgroundImage = "url('https://images.unsplash.com/photo-1518005020951-eccb494ad742?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80')";
+    
+    stopNodeTimer();
 });
 
-// --- Trophy & Victory System ---
-function showTrophy(title, desc, isWorldVictory = false) {
-    const overlay = document.getElementById('trophy-overlay');
-    document.getElementById('trophy-title').innerText = title;
-    document.getElementById('trophy-desc').innerText = desc;
-    overlay.classList.remove('hidden');
-
-    const btn = document.getElementById('btn-trophy-continue');
-    btn.onclick = () => {
-        overlay.classList.add('hidden');
-        if (isWorldVictory) {
-            location.reload(); // Reload to start a new game/world
-        } else {
-            btnLeaveNode.click(); // Return to map
-        }
-    };
-}
+// --- Trophy logic merged above ---
 
 // --- Dynamic Choice Buttons ---
 function renderChoices(choices, stage) {
