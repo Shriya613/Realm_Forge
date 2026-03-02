@@ -20,11 +20,22 @@ class Choice(BaseModel):
     description: str
 
 class StateChanges(BaseModel):
-    xp_gained: int
+    xp_gained: int = 0
     hp_delta: int = 0
     energy_delta: int = 0
     loot_dropped: List[str] = []
     region_status: Literal["conquered", "contested", "lost", "unchanged"]
+
+    @classmethod
+    def model_validate(cls, obj, *args, **kwargs):
+        # Coerce numeric fields from string if Mistral returns them as strings
+        if isinstance(obj, dict):
+            for field in ("xp_gained", "hp_delta", "energy_delta"):
+                try:
+                    obj[field] = int(obj.get(field, 0))
+                except (TypeError, ValueError):
+                    obj[field] = 0
+        return super().model_validate(obj, *args, **kwargs)
 
 class DMResponse(BaseModel):
     narration: str
