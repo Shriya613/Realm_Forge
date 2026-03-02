@@ -4,9 +4,9 @@
  */
 
 const SPRITE_TYPES = {
-    player: { label: '🧝', cls: 'sprite-player' },
-    enemy:  { label: '👺', cls: 'sprite-enemy'  },
-    npc:    { label: '🧙', cls: 'sprite-npc'    }
+    player: { label: 'P', cls: 'sprite-player' },
+    enemy:  { label: '!', cls: 'sprite-enemy'  },
+    npc:    { label: 'N', cls: 'sprite-npc'    }
 };
 
 class MapSprite {

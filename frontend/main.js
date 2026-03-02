@@ -74,14 +74,14 @@ function updateHUD(stats = {}) {
         const pbar = document.getElementById('progress-bar');
         const wc = document.getElementById('win-condition');
         if (fill) fill.style.width = `${pct}%`;
-        if (ptext) ptext.textContent = bossUnlocked ? '⚔️ BOSS UNLOCKED' : `${conquered} / ${bossIdx} NODES`;
+        if (ptext) ptext.textContent = bossUnlocked ? 'BOSS UNLOCKED' : `${conquered} / ${bossIdx} NODES`;
         if (pbar) pbar.classList.toggle('boss-ready', bossUnlocked);
         if (wc && worldData.win_condition) wc.textContent = `OBJECTIVE: ${worldData.win_condition}`;
 
         if (bossUnlocked) {
             hudBossStat.style.display = '';
             if (conquered < total) {
-                addChatMsg('⚔️ BOSS UNLOCKED — Enter the final node!', 'peer-action');
+                addChatMsg('BOSS UNLOCKED — Enter the final node!', 'peer-action');
             }
         } else {
             hudBossStat.style.display = 'none';
@@ -110,8 +110,7 @@ let minigameInterval;
 let cursorPosition = 0;
 let cursorDirection = 1;
 
-// Default starting background
-dynamicBg.style.backgroundImage = "url('https://images.unsplash.com/photo-1518005020951-eccb494ad742?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80')";
+// Default starting background is now handled via CSS (Realm Forge v2-style gradient)
 
 const lobbyScreen = document.getElementById('lobby-screen');
 
@@ -571,7 +570,7 @@ function setupMapEngine() {
     svg.id = 'map-connections';
     overworldMap.appendChild(svg);
 
-    const PERSONALITY_ICON = { aggressive: '⚔️', cunning: '🗡️', defensive: '🛡️', diplomatic: '📜' };
+    const PERSONALITY_ICON = { aggressive: 'A', cunning: 'C', defensive: 'D', diplomatic: 'P' };
     const DIFF_COLOR = { easy: '#00ffcc', medium: '#ffcc00', hard: '#ff4444' };
 
     // Create Realm Nodes — use Mistral position when available (v2 layout)
@@ -606,7 +605,7 @@ function setupMapEngine() {
         // Icon / check
         const iconEl = document.createElement('div');
         iconEl.style.cssText = 'position:relative; z-index:2; font-size:20px; pointer-events:none;';
-        iconEl.innerText = isConquered ? '✓' : (isLocked ? '🔒' : icon);
+        iconEl.innerText = isConquered ? '●' : (isLocked ? 'L' : icon);
         node.appendChild(iconEl);
 
         // Difficulty badge
@@ -621,7 +620,7 @@ function setupMapEngine() {
         if (isConquered) {
             const rest = document.createElement('div');
             rest.className = 'node-rest-icon';
-            rest.innerText = '🛖';
+            rest.innerText = 'R';
             node.appendChild(rest);
         }
 
@@ -638,7 +637,7 @@ function setupMapEngine() {
                 tooltip = document.createElement('div');
                 tooltip.className = `node-tooltip diff-${diff}`;
                 tooltip.innerHTML = isConquered
-                    ? `<span style="color:#00ff88">🛖 Rest here: +20 HP, +15 Energy</span>`
+                    ? `<span style="color:#00ff88">Rest here: +20 HP, +15 Energy</span>`
                     : `${faction?.name || '?'} · <span style="color:${color}">${diff}</span>`;
                 node.appendChild(tooltip);
             });
@@ -751,7 +750,7 @@ function gameLoop() {
 }
 
 // Stage badge rendering
-const stageLabels = { approach: "🔍 APPROACH", challenge: "⚔️ CHALLENGE", resolution: "🏆 RESOLUTION", complete: "✅ COMPLETE" };
+const stageLabels = { approach: "APPROACH", challenge: "CHALLENGE", resolution: "RESOLUTION", complete: "COMPLETE" };
 
 // ── Faction Portrait SVG (v2 neon style by personality) ─────────────────
 function getFactionPortraitSVG(faction, size = 72) {
@@ -927,12 +926,8 @@ function triggerNodeEncounter(region) {
         dmText.style.color = "#8ab4f8";
     }
 
-    // Dynamic Image Fetch
-    dynamicBg.classList.remove('focus');
-    const bgUrl = `http://127.0.0.1:8000/region-image?prompt=${encodeURIComponent(region.description)}`;
-    const newBg = new Image();
-    newBg.src = bgUrl;
-    newBg.onload = () => { dynamicBg.style.backgroundImage = `url('${bgUrl}')`; dynamicBg.classList.add('focus'); };
+    // Realm Forge v2-style focus state (no remote images)
+    if (dynamicBg) dynamicBg.classList.add('focus');
     
     // Play approach SFX
     playSFX('approach');
@@ -948,9 +943,7 @@ btnLeaveNode.addEventListener('click', () => {
     currentRegionId = null;
     regionEncounter.classList.add('hidden');
     overworldMap.classList.remove('hidden');
-    
-    dynamicBg.classList.remove('focus');
-    dynamicBg.style.backgroundImage = "url('https://images.unsplash.com/photo-1518005020951-eccb494ad742?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80')";
+    if (dynamicBg) dynamicBg.classList.remove('focus');
     
     stopNodeTimer();
 });
@@ -1033,7 +1026,7 @@ function renderChoices(choices, stage) {
                     r.domNode.className = 'overworld-node conquered';
                     r.domNode.querySelector('.node-pulse-ring')?.remove();
                     const iconEl = r.domNode.querySelector('div');
-                    if (iconEl) iconEl.innerText = '✓';
+                    if (iconEl) iconEl.innerText = '●';
                 }
             });
 
