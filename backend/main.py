@@ -13,6 +13,8 @@ from backend.narration import generate_narration
 from backend.hf_image import generate_region_image
 from backend.ws_manager import manager
 from backend.voice import transcribe_audio
+from backend.audio import generate_sfx_library
+from backend.portraits import generate_faction_portraits
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -41,17 +43,37 @@ class ActionRequest(BaseModel):
 @app.post("/generate-world", summary="Generate a complete game world")
 async def create_world(request: WorldRequest):
     """
-    Takes a player prompt and returns the AI-generated world as JSON.
+    Generates world via Mistral Small, then adds Gemini faction portraits
+    in parallel (non-blocking if portraits fail).
     """
     try:
         logger.info(f"Generating world with prompt: {request.prompt}")
         world_data = await generate_world(request.prompt)
-        # Store in memory
+
+        # Add Gemini faction portraits in parallel (gracefully skipped on error)
+        try:
+            world_data = await generate_faction_portraits(world_data)
+            logger.info("[portraits] Faction portraits generated")
+        except Exception as pe:
+            logger.warning(f"[portraits] Skipped: {pe}")
+
+        # Store session
         create_session(request.session_id, world_data, request.player_name)
         return {"status": "success", "data": world_data, "session_id": request.session_id}
     except Exception as e:
         logger.error(f"Error generating world: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/sfx-library", summary="Pre-generate SFX library via ElevenLabs")
+async def get_sfx_library():
+    """Called once at game start — generates all sound effects in parallel."""
+    try:
+        library = await generate_sfx_library()
+        logger.info(f"[audio] SFX library generated: {list(library.keys())}")
+        return {"status": "success", "sfx": library}
+    except Exception as e:
+        logger.error(f"[audio] SFX library failed: {e}")
+        return {"status": "error", "sfx": {}}
 
 @app.post("/action", summary="Submit a player action to the DM")
 async def player_action(request: ActionRequest):

@@ -1,8 +1,11 @@
 import { PushToTalk } from './voxtral.js';
+import { spawnRegionEnemies, MapSprite } from './sprites.js';
 let playerName = "Guest";
 let currentSessionId = "demo_session_" + Math.floor(Math.random() * 10000);
 let worldData = null;
 let currentRegionId = null;
+let enemySprites = [];   // active MapSprite instances on the overworld
+let sfxLibrary = {};     // pre-generated SFX base64 map
 
 // DOM Elements
 const uiLayer = document.getElementById('ui-layer');
@@ -250,6 +253,15 @@ function enterGame() {
 
         // Init progress bar from world data
         updateHUD();
+
+        // Load SFX library in background (non-blocking)
+        fetch('http://127.0.0.1:8000/sfx-library')
+            .then(r => r.json())
+            .then(data => {
+                sfxLibrary = data.sfx || {};
+                console.log('[audio] SFX loaded:', Object.keys(sfxLibrary).filter(k => sfxLibrary[k]).length, 'sounds');
+            })
+            .catch(e => console.warn('[audio] SFX load failed:', e));
         
         setupMapEngine();
     }, 500);
@@ -493,11 +505,18 @@ function setupMapEngine() {
         });
     }
 
+    // Spawn CSS animated enemy sprites near each region node
+    enemySprites.forEach(s => s.destroy());
+    enemySprites = [];
+    const mapRect = overworldMap.getBoundingClientRect();
+    const bounds = { left: 0, top: 0, right: mapRect.width, bottom: mapRect.height, width: mapRect.width, height: mapRect.height };
+    enemySprites = spawnRegionEnemies(worldData.regions, bounds);
+
     if (worldData.regions.length > 0) {
         playerPos.x = worldData.regions[0].renderX;
         playerPos.y = worldData.regions[0].renderY;
     }
-    
+
     gameLoopActive = true;
     requestAnimationFrame(gameLoop);
 }
@@ -570,17 +589,28 @@ const stageLabels = { approach: "🔍 APPROACH", challenge: "⚔️ CHALLENGE", 
 function triggerNodeEncounter(region) {
     insideNode = true;
     currentRegionId = region.id;
-    
-    // UI Transitions
+
     overworldMap.classList.add('hidden');
     regionEncounter.classList.remove('hidden');
-    
+
     currentRegionName.innerText = region.name.toUpperCase();
     currentRegionDesc.innerText = region.description;
-    
+
     actionButtons.innerHTML = "";
     dmText.innerHTML = "<em style='color:#8ab4f8'>Entering node... The Architect is observing.</em>";
     dmText.style.color = "#8ab4f8";
+
+    // Show faction portrait if available
+    const existingPortrait = document.querySelector('.faction-portrait');
+    if (existingPortrait) existingPortrait.remove();
+    const faction = (worldData.factions || []).find(f => f.id === region.faction_id);
+    if (faction && faction.portrait_b64) {
+        const img = document.createElement('img');
+        img.src = `data:image/png;base64,${faction.portrait_b64}`;
+        img.className = 'faction-portrait';
+        img.title = faction.name;
+        regionEncounter.appendChild(img);
+    }
 
     // Dynamic Image Fetch
     imageLoader.classList.remove('hidden');
@@ -591,7 +621,9 @@ function triggerNodeEncounter(region) {
     newBg.onload = () => { dynamicBg.style.backgroundImage = `url('${bgUrl}')`; dynamicBg.classList.add('focus'); imageLoader.classList.add('hidden'); };
     newBg.onerror = () => { imageLoader.classList.add('hidden'); };
 
-    // Kick off first beat of the story automatically
+    // Play approach SFX
+    playSFX('approach');
+
     sendAction("Player enters the region and surveys the situation.");
 }
 
@@ -628,6 +660,11 @@ function renderChoices(choices, stage) {
             window._conqueredRegions = window._conqueredRegions || [];
             window._conqueredRegions.push(currentRegionId);
             updateHUD(); // refresh nodes counter + check boss unlock
+            playSFX('conquered');
+            // Destroy enemy sprites for this region
+            enemySprites
+                .filter(s => s.regionId === currentRegionId)
+                .forEach(s => { s.celebrate(); setTimeout(() => s.destroy(), 1400); });
         }
 
         const doneBtn = document.createElement('button');
@@ -684,6 +721,17 @@ btnHackStop.addEventListener('click', () => {
     }
 });
 
+// ── SFX Player ─────────────────────────────────────────────────────────────
+function playSFX(eventName) {
+    const b64 = sfxLibrary[eventName];
+    if (!b64) return;
+    try {
+        const audio = new Audio(`data:audio/mpeg;base64,${b64}`);
+        audio.volume = 0.55;
+        audio.play().catch(() => {});
+    } catch (e) { /* skip if blocked */ }
+}
+
 async function sendAction(actionStr, bypassRegionId = null) {
     if (!insideNode) return; // ignore overworld clicks if any leak
     
@@ -714,23 +762,26 @@ async function sendAction(actionStr, bypassRegionId = null) {
 
             dmText.innerText = dmResponse.narration;
             dmText.style.color = textColor;
-            
+
+            // Play outcome SFX
+            playSFX(dmResponse.outcome || 'partial');
+
             // Update HUD (single source of truth)
             updateHUD({ xp: data.xp, hp: data.hp, energy: data.energy });
-            
+
             // Screen Shake for heavy damage
             if (parseInt(dmResponse.state_changes?.hp_delta ?? 0) < -10) {
                  dynamicBg.style.transform = "translateX(10px)";
                  setTimeout(() => dynamicBg.style.transform = "translateX(-10px)", 50);
                  setTimeout(() => dynamicBg.style.transform = "translateX(0)", 100);
             }
-            
+
             // Render dynamic choices from Mistral's response
             renderChoices(data.choices || [], data.stage || 'approach');
-            
+
             // Broadcast narration to all co-op players
             wsSend({ type: 'action_narration', narration: dmResponse.narration, outcome: dmResponse.outcome, stage: data.stage });
-            
+
             playNarration(dmResponse.narration);
         } else {
             dmText.innerText = "Error: Architect connection refused.";
