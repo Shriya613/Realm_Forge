@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>The Reality Engine</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div id="dynamic-bg"></div>
+    <audio id="bg-music" loop preload="auto">
+        <source src="https://cdn.pixabay.com/download/audio/2022/10/25/audio_24a2cb5ee2.mp3?filename=cyberpunk-2099-10701.mp3" type="audio/mpeg">
+    </audio>
+
+    <!-- PRE-GAME SCREENS -->
+    <div id="ui-layer" class="active">
+      <div id="login-screen" class="screen active glass">
+        <h1 class="logo glow">The Reality Engine</h1>
+        <p class="subtitle">Mistral-Powered Infinite Storyverse</p>
+        <div class="input-group">
+          <label>Identify Protocol</label>
+          <input type="text" id="char-name" placeholder="Enter your callsign..." autocomplete="off">
+        </div>
+        <button id="btn-next" class="primary-btn pulse">Link Core</button>
+      </div>
+
+      <div id="lobby-screen" class="screen glass">
+        <h2 class="prompt-title glow">Mission Briefing</h2>
+        <p class="subtitle">Join an existing session or start a new simulation?</p>
+        <div class="lobby-options" style="display:flex; flex-direction:row; gap:20px;">
+          <div class="lobby-card" id="card-solo">
+            <div class="lobby-icon">👤</div>
+            <h3>Play Solo</h3>
+            <p>Start a new private adventure.</p>
+            <button id="btn-solo" class="primary-btn" style="margin-top:14px;">Single Player</button>
+          </div>
+          <div class="lobby-card" id="card-coop">
+            <div class="lobby-icon">🌐</div>
+            <h3>Co-op Multiplayer</h3>
+            <p>Generate a world & receive a code to share, or join a friend's simulation.</p>
+            <button id="btn-create-session" class="primary-btn" style="margin-top:14px; margin-bottom: 20px;">Create Session</button>
+            <div class="input-group" style="padding-top:10px; border-top: 1px solid #444;">
+              <input type="text" id="join-session-input" placeholder="Paste session ID..." autocomplete="off">
+            </div>
+            <button id="btn-join-lobby" class="primary-btn" style="margin-top:10px;">Join Session</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="rules-screen" class="screen glass">
+        <h2 class="prompt-title glow">Simulation Directives</h2>
+        <div style="text-align:left; color:#ccc; line-height:1.8; margin-bottom:20px; font-size:1em;">
+          <p><strong style="color:#00ffcc;">OBJECTIVE:</strong> Traverse the overworld and conquer reality nodes.</p>
+          <p><strong style="color:#00ffcc;">MOVEMENT:</strong> Use <b>W A S D</b> or Arrow Keys to move your avatar.</p>
+          <p><strong style="color:#00ffcc;">INTERACTION:</strong> Walk over a Node and press <b>'E'</b> to enter.</p>
+          <p><strong style="color:#00ffcc;">ENEMIES:</strong> Hostile red avatars roam the map — they will intercept you!</p>
+          <p><strong style="color:#00ffcc;">ESCAPE:</strong> Press <b>ESC</b> to exit a node or close panels.</p>
+          <p><strong style="color:#00ffcc;">COMMS:</strong> Hold <b>V</b> for push-to-talk voice or use the chat panel.</p>
+          <p><strong style="color:#ffcc00;">💡 HINTS:</strong> Hover over any action button to see a description of what it does before committing to it.</p>
+        </div>
+        <button id="btn-accept-rules" class="primary-btn">Acknowledge</button>
+      </div>
+
+      <div id="prompt-screen" class="screen glass">
+        <h2 class="prompt-title glow">Initialize Simulation</h2>
+        <p class="subtitle">Define the parameters of the reality Mistral will architect.</p>
+        <div class="input-group">
+          <textarea id="world-prompt" rows="4" placeholder="e.g. A dystopian cyberpunk megacity run by neon cartels and rogue AI..."></textarea>
+        </div>
+        <button id="btn-generate" class="primary-btn">Engage Generators</button>
+      </div>
+
+      <div id="loading-screen" class="screen glass">
+        <h2 class="glow">Processing Reality...</h2>
+        <p class="loading-text" id="loading-status">The Architect is assembling the nodes...</p>
+        <div class="spinner"></div>
+      </div>
+    </div>
+
+    <!-- MAIN GAME INTERFACE -->
+    <div id="game-interface" class="hidden">
+
+      <!-- HUD -->
+      <header id="hud-top" class="glass-panel horizontal">
+          <div class="stat">USER: <span id="hud-name" class="highlight">Guest</span></div>
+          <div class="stat">XP: <span id="hud-xp" class="highlight">0</span></div>
+          <div class="stat">HP: <span id="hud-hp" class="highlight hp-text">100</span>/100</div>
+          <div class="stat">ENERGY: <span id="hud-energy" class="highlight energy-text">50</span>/50</div>
+          <div class="stat">NODES: <span id="hud-nodes" class="highlight">0/0</span></div>
+          <div class="stat">WORLD: <span id="hud-world" class="highlight">—</span></div>
+          <div class="stat" id="hud-boss-stat" style="display:none;">
+            <span id="hud-boss" style="color:#ff3333; text-shadow:0 0 8px #ff3333; animation: pulse-ring 1s ease-in-out infinite;">BOSS READY</span>
+          </div>
+          <div class="stat">
+            <button id="btn-voice-toggle" title="Toggle AI narration voice (uses ElevenLabs credits when ON)"
+              style="background:rgba(255,255,255,0.05); border:1px solid #444; color:#666;
+                     font-family:inherit; font-size:0.7em; padding:2px 8px; border-radius:3px;
+                     cursor:pointer; letter-spacing:1px; transition:all 0.2s;">
+              🔇 VOICE: OFF
+            </button>
+          </div>
+          <div class="stat">STATUS: <span id="hud-status" class="status-ok">ONLINE</span></div>
+      </header>
+
+      <!-- Progress Bar & Objective -->
+      <div id="progress-container">
+        <div id="win-condition">Loading objective...</div>
+        <div id="progress-bar">
+          <div id="progress-fill"></div>
+          <span id="progress-text">0 / 0 NODES</span>
+        </div>
+      </div>
+
+      <button id="btn-help" class="help-btn">?</button>
+
+      <!-- Session Badge -->
+      <div id="mp-badge" class="mp-badge glass-panel">
+        <span style="color:#8ab4f8; font-size:0.75em;">SESSION:</span>
+        <code id="mp-session-id" style="color:#fff; font-size:0.8em; margin:0 6px;"></code>
+        <button id="btn-copy-session" class="small-btn">📋</button>
+        <span style="color:#8ab4f8; font-size:0.75em; margin-left:10px;">👥 <span id="mp-player-count">1</span></span>
+      </div>
+
+      <!-- Game body: main content + chat side by side -->
+      <div id="game-body">
+
+        <div id="main-content">
+
+          <!-- OVERWORLD MAP -->
+          <div id="overworld-map">
+              <div id="player-avatar" class="avatar-entity player"></div>
+              <div id="sprite-layer"></div>
+          </div>
+
+          <!-- REGION ENCOUNTER VIEW (full-screen + bottom-anchored panel) -->
+          <div id="region-encounter" class="hidden" style="position:relative; width:100%; height:100%;">
+
+            <!-- V2 BOTTOM PANEL -->
+            <div id="v2-encounter-panel" class="encounter-bottom-panel">
+              <!-- Header: portrait + info + timer + exit -->
+              <div class="encounter-header">
+                <div id="v2-portrait" style="width:68px; height:68px; border-radius:6px; border:2px solid #00ffcc; box-shadow:0 0 16px #00ffcc55; display:flex; align-items:center; justify-content:center; font-size:24px; font-family:'Press Start 2P',monospace; background:#0a0a1a; flex-shrink:0;">◆</div>
+                <div style="flex:1; margin-left:4px;">
+                  <div id="v2-faction-name" style="font-family:'Press Start 2P',monospace; font-size:11px; color:#00ffcc; text-shadow:0 0 8px #00ffcc; margin-bottom:6px;">THE ARCHITECT</div>
+                  <div id="v2-stage-line" style="font-family:monospace; font-size:10px; color:#555; letter-spacing:2px;">◆ APPROACH</div>
+                  <div style="margin-top:8px; display:flex; align-items:center; gap:8px;">
+                    <span style="font-family:'Press Start 2P',monospace; font-size:7px; color:#00ff88;">HP</span>
+                    <div style="flex:1; height:6px; background:#111; border-radius:3px; overflow:hidden;">
+                      <div id="v2-hp-fill" style="width:100%; height:100%; background:#00ff88; border-radius:3px; transition:width 0.4s, background 0.4s;"></div>
+                    </div>
+                    <span id="v2-hp-text" style="font-family:monospace; font-size:10px; color:#00ff88;">100/100</span>
+                  </div>
+                </div>
+                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+                  <div id="node-timer" class="hidden" style="color:#ff3333; font-family:'Press Start 2P',monospace; font-size:10px; text-shadow:0 0 8px #ff3333;">10:00</div>
+                  <button id="btn-leave-node" style="background:none; border:1px solid #333; color:#555; font-family:'Press Start 2P',monospace; font-size:8px; padding:6px 12px; cursor:pointer; border-radius:4px;">← EXIT</button>
+                </div>
+              </div>
+
+              <!-- Narration -->
+              <div id="v2-narration" class="narration-block">Entering the region...</div>
+
+              <!-- dm-text hidden but used by legacy JS -->
+              <div id="dm-text" style="display:none;"></div>
+
+              <!-- Choices -->
+              <div id="action-buttons" style="display:flex; gap:10px; flex-wrap:wrap;"></div>
+
+              <!-- Stage dots -->
+              <div class="stage-dots">
+                <div class="stage-dot current"></div>
+                <div class="stage-dot pending"></div>
+                <div class="stage-dot pending"></div>
+                <span class="stage-label">APPROACH</span>
+              </div>
+            </div>
+
+            <!-- Minigame overlay (absolute, centered) -->
+            <div id="minigame-overlay" class="glass-panel hidden" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:400; width:420px; padding:30px;">
+              <h3 class="panel-header glow" style="color:#ff00cc; text-align:center;">HACKING MATRIX</h3>
+              <p style="text-align:center; color:#fff;">Stop cursor in the <span style="color:#00ff00;">GREEN ZONE</span>!</p>
+              <div id="hack-bar-container">
+                <div id="hack-target-zone"></div>
+                <div id="hack-cursor"></div>
+              </div>
+              <div style="text-align:center; margin-top:20px;">
+                <button id="btn-hack-stop" class="primary-btn" style="width:auto;">BREACH!</button>
+              </div>
+            </div>
+
+            <!-- Legacy hidden IDs for JS compat -->
+            <div id="current-region-name" style="display:none;"></div>
+            <div id="current-region-desc" style="display:none;"></div>
+            <div id="image-loading-spinner" style="display:none;"></div>
+            <div id="regions-panel" style="display:none;"></div>
+          </div>
+
+        </div><!-- end #main-content -->
+
+        <!-- RIGHT-SIDE COLLAPSIBLE CHAT PANEL -->
+        <div id="chat-sidebar" class="chat-sidebar collapsed">
+          <div id="chat-sidebar-header">
+            <span>CO-OP COMMS</span>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <button id="btn-voice" class="voice-btn" title="Hold V for push-to-talk">MIC</button>
+              <button id="btn-toggle-chat" class="small-btn" title="Collapse chat">◀</button>
+            </div>
+          </div>
+          <div id="chat-feed"></div>
+          <div id="chat-input-row">
+            <input id="chat-input" type="text" placeholder="Type a message...">
+            <button id="btn-chat-send" class="small-btn">↩</button>
+          </div>
+        </div>
+
+      </div><!-- end #game-body -->
+
+      <!-- TROPHY OVERLAY (v2 confetti + SVG trophy) -->
+      <div id="trophy-overlay" class="hidden glass-panel" style="position:fixed; inset:0; z-index:300; text-align:center; padding:40px; border:2px solid #ffcc00; box-shadow:0 0 40px rgba(255,204,0,0.5); backdrop-filter: blur(10px); background: rgba(0,0,0,0.93); display:flex; flex-direction:column; align-items:center; justify-content:center;">
+          <div id="trophy-confetti" class="trophy-confetti"></div>
+          <div id="trophy-svg-wrap" class="trophy-svg">
+            <svg width="150" height="165" viewBox="0 0 140 160">
+              <defs>
+                <linearGradient id="tg" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#ffe066"/>
+                  <stop offset="100%" stop-color="#ff8800"/>
+                </linearGradient>
+              </defs>
+              <path d="M32,18 L108,18 L97,92 Q70,114 43,92 Z" fill="url(#tg)" stroke="#cc7700" stroke-width="1.5"/>
+              <path d="M44,24 L62,24 L56,72 Q50,82 44,72 Z" fill="#fff" opacity="0.25"/>
+              <path d="M32,28 Q10,28 10,56 Q10,78 32,72" stroke="url(#tg)" stroke-width="9" fill="none" stroke-linecap="round"/>
+              <path d="M108,28 Q130,28 130,56 Q130,78 108,72" stroke="url(#tg)" stroke-width="9" fill="none" stroke-linecap="round"/>
+              <rect x="60" y="96" width="20" height="26" fill="#cc8800"/>
+              <rect x="42" y="120" width="56" height="14" rx="5" fill="url(#tg)" stroke="#cc7700" stroke-width="1.5"/>
+              <text x="70" y="68" text-anchor="middle" font-size="30" fill="#7a4400" opacity="0.7">★</text>
+              <text x="70" y="66" text-anchor="middle" font-size="26" fill="#fff" opacity="0.9">★</text>
+            </svg>
+          </div>
+          <h2 id="trophy-title" class="trophy-title-v2">NODE CONQUERED!</h2>
+          <p id="trophy-desc" class="trophy-desc-v2">You have claimed this region for yourself.</p>
+          <button id="btn-trophy-continue" class="primary-btn" style="border-color:#ffcc00; color:#ffcc00;">CONTINUE</button>
+      </div>
+
+      <!-- DEFEAT OVERLAY (v2 skull shake) -->
+      <div id="defeat-overlay" class="hidden">
+        <div class="skull-emoji">💀</div>
+        <div class="defeat-title">DEFEATED</div>
+        <div class="defeat-sub" id="defeat-node-name">Unknown has repelled you.</div>
+        <div class="defeat-info" id="defeat-info" style="font-family:monospace;font-size:13px;color:#666;margin-bottom:8px;text-align:center;"></div>
+        <div style="font-family:monospace;font-size:12px;color:#444;margin-bottom:32px;">You survive with 15 HP. Rest at a conquered node to recover.</div>
+        <div style="display:flex;gap:16px;">
+          <button id="btn-defeat-retry" class="defeat-retry-btn">RETRY (−20 ENERGY)</button>
+          <button id="btn-defeat-retreat" class="defeat-retreat-btn">RETREAT TO MAP</button>
+        </div>
+      </div>
+
+    </div><!-- end #game-interface -->
+
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>
