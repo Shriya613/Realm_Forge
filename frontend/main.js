@@ -10,6 +10,9 @@ let voiceEnabled = false; // OFF by default — saves ElevenLabs credits
 let isMultiplayer = false;
 let nodeTimerInterval = null;
 let nodeTimeRemaining = 600;
+let failedNodes = {};  // { regionId: failCount } for 3-strike world reset
+let showDefeatOverlay = false;
+let defeatRegionName = '';
 
 // DOM Elements
 const uiLayer = document.getElementById('ui-layer');
@@ -33,7 +36,24 @@ const hudBossStat = document.getElementById('hud-boss-stat');
 // ── Central HUD Update + Progress Bar ────────────────────────────────────
 function updateHUD(stats = {}) {
     if (stats.xp     !== undefined) hudXp.innerText     = parseInt(stats.xp)     || 0;
-    if (stats.hp     !== undefined) hudHp.innerText     = parseInt(stats.hp)     || 0;
+    if (stats.hp     !== undefined) {
+        hudHp.innerText = parseInt(stats.hp) || 0;
+        
+        // Sync v2 panel HP bar if it's on screen
+        const hpText = document.getElementById('v2-hp-text');
+        const hpFill = document.getElementById('v2-hp-fill');
+        if (hpText && hpFill) {
+            hpText.innerText = `${stats.hp}/100`;
+            hpFill.style.width = `${Math.min(100, stats.hp)}%`;
+            if (stats.hp < 30) {
+                hpFill.style.background = '#ff4444';
+                hpText.style.color = '#ff4444';
+            } else {
+                hpFill.style.background = '#00ff88';
+                hpText.style.color = '#00ff88';
+            }
+        }
+    }
     if (stats.energy !== undefined) hudEnergy.innerText = parseInt(stats.energy) || 0;
 
     // Conquered nodes counter + boss unlock
@@ -278,6 +298,7 @@ function enterGame() {
 
         // Init progress bar from world data
         updateHUD();
+        window._playerStats = { xp: 0, hp: 100, maxHp: 100, energy: 50, maxEnergy: 50 };
 
         // SFX library disabled to conserve ElevenLabs credits.
         // Re-enable when on a paid plan: fetch('http://127.0.0.1:8000/sfx-library')...
@@ -365,6 +386,17 @@ function addChatMsg(text, cls = '') {
     el.innerText = text;
     chatFeed.appendChild(el);
     chatFeed.scrollTop = chatFeed.scrollHeight;
+}
+
+// ── Toast Notifications (v2) ─────────────────────────────────────────────
+function showToast(message, type = 'info') {
+    const existing = document.querySelector('.toast-v2');
+    if (existing) existing.remove();
+    const toast = document.createElement('div');
+    toast.className = `toast-v2 ${type}`;
+    toast.innerText = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2400);
 }
 
 // ─── MULTIPLAYER: CHAT SIDEBAR + VOICE PTT ─────────────────────────────────────
@@ -515,43 +547,148 @@ window.addEventListener('keyup', e => {
 });
 
 function setupMapEngine() {
-    overworldMap.querySelectorAll('.overworld-node, .enemy').forEach(e => e.remove());
+    overworldMap.querySelectorAll('.overworld-node, .enemy, #map-connections').forEach(e => e.remove());
     enemies = [];
-    
+
     const totalNodes = worldData.regions.length;
     const step = totalNodes > 1 ? 80 / (totalNodes - 1) : 40;
-    
-    // Create Realm Nodes
+    const conqueredIds = window._conqueredRegions || [];
+
+    // Compute which nodes are available (difficulty gating: easy -> medium -> hard)
+    function getAvailableIds(regions, conquered) {
+        const order = ['easy', 'medium', 'hard'];
+        for (const diff of order) {
+            const atLevel = regions.filter(r => r.difficulty === diff);
+            const doneAtLevel = atLevel.filter(r => conquered.includes(r.id));
+            if (doneAtLevel.length < atLevel.length) return atLevel.map(r => r.id);
+        }
+        return [];
+    }
+    const availableIds = getAvailableIds(worldData.regions, conqueredIds);
+
+    // SVG connection lines between nodes
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.id = 'map-connections';
+    overworldMap.appendChild(svg);
+
+    const PERSONALITY_ICON = { aggressive: '⚔️', cunning: '🗡️', defensive: '🛡️', diplomatic: '📜' };
+    const DIFF_COLOR = { easy: '#00ffcc', medium: '#ffcc00', hard: '#ff4444' };
+
+    // Create Realm Nodes — use Mistral position when available (v2 layout)
     worldData.regions.forEach((region, index) => {
-        const mappedX = 10 + (index * step);
-        const mappedY = 50; 
-        
+        const pos = region.position || {};
+        const mappedX = (typeof pos.x === 'number' ? pos.x : 10 + (index * step));
+        const mappedY = (typeof pos.y === 'number' ? pos.y : 50);
         region.renderX = mappedX;
         region.renderY = mappedY;
-        
+
+        const isConquered = conqueredIds.includes(region.id);
+        const isAvailable = availableIds.includes(region.id);
+        const isLocked = !isConquered && !isAvailable;
+        const diff = region.difficulty || 'easy';
+        const faction = (worldData.factions || []).find(f => f.id === region.faction_id);
+        const icon = PERSONALITY_ICON[faction?.personality] || '◆';
+        const color = DIFF_COLOR[diff] || '#00ffcc';
+
         const node = document.createElement('div');
-        node.className = 'overworld-node';
+        node.className = `overworld-node ${isConquered ? 'conquered' : isLocked ? 'locked' : 'diff-' + diff}`;
         node.style.left = `${mappedX}%`;
         node.style.top = `${mappedY}%`;
-        node.innerHTML = `<span>${region.name}</span>`;
-        
+        node.dataset.regionId = region.id;
+
+        // Pulse ring for available
+        if (isAvailable && !isConquered) {
+            const ring = document.createElement('div');
+            ring.className = `node-pulse-ring ring-${diff}`;
+            node.appendChild(ring);
+        }
+
+        // Icon / check
+        const iconEl = document.createElement('div');
+        iconEl.style.cssText = 'position:relative; z-index:2; font-size:20px; pointer-events:none;';
+        iconEl.innerText = isConquered ? '✓' : (isLocked ? '🔒' : icon);
+        node.appendChild(iconEl);
+
+        // Difficulty badge
+        if (!isConquered && !isLocked) {
+            const badge = document.createElement('div');
+            badge.className = `node-diff-badge diff-badge-${diff}`;
+            badge.innerText = diff[0].toUpperCase();
+            node.appendChild(badge);
+        }
+
+        // Rest icon on conquered
+        if (isConquered) {
+            const rest = document.createElement('div');
+            rest.className = 'node-rest-icon';
+            rest.innerText = '🛖';
+            node.appendChild(rest);
+        }
+
+        // Name label
+        const label = document.createElement('div');
+        label.className = 'node-label';
+        label.innerText = region.name;
+        node.appendChild(label);
+
+        // Hover tooltip
+        let tooltip = null;
+        if (!isLocked) {
+            node.addEventListener('mouseenter', () => {
+                tooltip = document.createElement('div');
+                tooltip.className = `node-tooltip diff-${diff}`;
+                tooltip.innerHTML = isConquered
+                    ? `<span style="color:#00ff88">🛖 Rest here: +20 HP, +15 Energy</span>`
+                    : `${faction?.name || '?'} · <span style="color:${color}">${diff}</span>`;
+                node.appendChild(tooltip);
+            });
+            node.addEventListener('mouseleave', () => { if (tooltip) { tooltip.remove(); tooltip = null; } });
+        }
+
+        // Click handler
+        node.addEventListener('click', () => {
+            if (isLocked) return;
+            const stats = window._playerStats || { energy: 50 };
+            if (!isConquered && (stats.energy || 50) < 10) {
+                showToast('Too exhausted! Rest at a conquered node first.', 'warn');
+                return;
+            }
+            if (isConquered) {
+                // Rest mechanic (v2)
+                const stats = window._playerStats || { hp: 100, maxHp: 100, energy: 50, maxEnergy: 50 };
+                if (stats.hp >= stats.maxHp && stats.energy >= (stats.maxEnergy || 50)) {
+                    showToast('Already at full health!', 'info');
+                    return;
+                }
+                updateHUD({ hp: Math.min(stats.maxHp, stats.hp + 20), energy: Math.min(stats.maxEnergy || 50, stats.energy + 15) });
+                window._playerStats = { ...stats, hp: Math.min(stats.maxHp, stats.hp + 20), energy: Math.min(stats.maxEnergy || 50, stats.energy + 15), maxHp: stats.maxHp, maxEnergy: stats.maxEnergy || 50 };
+                showToast(`Rested at ${region.name}. +20 HP, +15 Energy`, 'success');
+                addChatMsg(`Rested at ${region.name}. +20 HP, +15 Energy`, 'system');
+                return;
+            }
+            triggerNodeEncounter(region);
+        });
+
         overworldMap.appendChild(node);
         region.domNode = node;
     });
 
-    // Create Roaming Enemies
-    for(let i=0; i<4; i++) {
-        const en = document.createElement('div');
-        en.className = 'avatar-entity enemy';
-        overworldMap.appendChild(en);
-        enemies.push({
-            el: en, 
-            x: Math.random() * 80 + 10, 
-            y: Math.random() * 80 + 10,
-            dx: (Math.random() - 0.5) * 0.2, // fast roaming drift
-            dy: (Math.random() - 0.5) * 0.2
+    // Draw SVG connection lines
+    worldData.regions.forEach((r, i) => {
+        worldData.regions.slice(i + 1).forEach(r2 => {
+            const bothConq = (window._conqueredRegions || []).includes(r.id) && (window._conqueredRegions || []).includes(r2.id);
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', `${r.renderX}%`);
+            line.setAttribute('y1', `${r.renderY}%`);
+            line.setAttribute('x2', `${r2.renderX}%`);
+            line.setAttribute('y2', `${r2.renderY}%`);
+            line.setAttribute('stroke', bothConq ? '#00ff88' : '#00ffcc');
+            line.setAttribute('stroke-width', '1');
+            line.setAttribute('stroke-opacity', bothConq ? '0.18' : '0.06');
+            line.setAttribute('stroke-dasharray', '5,10');
+            svg.appendChild(line);
         });
-    }
+    });
 
     // Spawn CSS animated enemy sprites near each region node
     enemySprites.forEach(s => s.destroy());
@@ -616,12 +753,56 @@ function gameLoop() {
 // Stage badge rendering
 const stageLabels = { approach: "🔍 APPROACH", challenge: "⚔️ CHALLENGE", resolution: "🏆 RESOLUTION", complete: "✅ COMPLETE" };
 
+// ── Faction Portrait SVG (v2 neon style by personality) ─────────────────
+function getFactionPortraitSVG(faction, size = 72) {
+    const cfg = {
+        aggressive: { bg: "#1a0505", ring: "#ff4444", glow: "#ff444466", body: "#cc2222", eye: "#ffff00", brow: "angry" },
+        cunning:    { bg: "#0a0515", ring: "#8833ff", glow: "#8833ff66", body: "#6611cc", eye: "#00ffcc", brow: "raised" },
+        defensive:  { bg: "#050a1a", ring: "#4488ff", glow: "#4488ff66", body: "#2255cc", eye: "#aaddff", brow: "stern" },
+        diplomatic: { bg: "#1a1505", ring: "#ffcc00", glow: "#ffcc0066", body: "#cc9900", eye: "#ff8800", brow: "calm" },
+    }[faction?.personality || "aggressive"] || { bg: "#1a0505", ring: "#ff4444", glow: "#ff444466", body: "#cc2222", eye: "#ffff00", brow: "angry" };
+    const s = size;
+    return `<svg width="${s}" height="${s}" viewBox="0 0 80 80" style="border-radius:6px;border:2px solid ${cfg.ring};box-shadow:0 0 16px ${cfg.glow};flex-shrink:0">
+<rect width="80" height="80" fill="${cfg.bg}"/>
+<ellipse cx="40" cy="55" rx="28" ry="30" fill="${cfg.body}" opacity="0.25"/>
+<rect x="18" y="52" width="44" height="32" rx="10" fill="${cfg.body}" opacity="0.85"/>
+<rect x="28" y="54" width="24" height="7" rx="3" fill="#fff" opacity="0.18"/>
+<rect x="34" y="46" width="12" height="8" fill="${cfg.body}" opacity="0.7"/>
+<ellipse cx="40" cy="35" rx="17" ry="19" fill="${cfg.body}" opacity="0.9"/>
+<ellipse cx="40" cy="37" rx="13" ry="14" fill="${cfg.bg}" opacity="0.6"/>
+<ellipse cx="32" cy="35" rx="5" ry="5" fill="${cfg.eye}" opacity="0.95"/>
+<ellipse cx="48" cy="35" rx="5" ry="5" fill="${cfg.eye}" opacity="0.95"/>
+<circle cx="33" cy="36" r="2.5" fill="#000"/>
+<circle cx="49" cy="36" r="2.5" fill="#000"/>
+<ellipse cx="40" cy="18" rx="15" ry="7" fill="${cfg.body}" opacity="0.8"/>
+</svg>`;
+}
+
 // --- NODE ENCOUNTERS ---
 function showTrophy(title, desc, isWorldVictory = false) {
     const overlay = document.getElementById('trophy-overlay');
+    const confettiEl = document.getElementById('trophy-confetti');
     document.getElementById('trophy-title').innerText = title;
     document.getElementById('trophy-desc').innerText = desc;
     overlay.classList.remove('hidden');
+
+    // v2 confetti
+    if (confettiEl) {
+        confettiEl.innerHTML = '';
+        const colors = ['#ffcc00','#00ffcc','#ff4444','#ffffff','#ff8800','#88ff44'];
+        for (let i = 0; i < 45; i++) {
+            const p = document.createElement('div');
+            p.className = 'confetti-piece';
+            p.style.left = Math.random() * 100 + '%';
+            p.style.width = (5 + Math.random() * 9) + 'px';
+            p.style.height = p.style.width;
+            p.style.background = colors[i % colors.length];
+            p.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+            p.style.animationDelay = Math.random() * 1.8 + 's';
+            p.style.animationDuration = (2.2 + Math.random() * 1.8) + 's';
+            confettiEl.appendChild(p);
+        }
+    }
 
     const btn = document.getElementById('btn-trophy-continue');
     btn.onclick = () => {
@@ -632,6 +813,42 @@ function showTrophy(title, desc, isWorldVictory = false) {
             btnLeaveNode.click(); // Return to map
         }
     };
+}
+
+// --- DEFEAT OVERLAY (v2) ---
+function showDefeat(regionName, regionId) {
+    const defeatedRegionId = regionId || currentRegionId;
+    window._defeatedRegionId = defeatedRegionId;
+    window._defeatIsWorldReset = (failedNodes[defeatedRegionId] || 0) >= 3;
+    insideNode = false;
+    currentRegionId = null;
+    regionEncounter.classList.add('hidden');
+    overworldMap.classList.remove('hidden');
+    stopNodeTimer();
+
+    const failCount = failedNodes[defeatedRegionId] || 0;
+    const stats = window._playerStats || { energy: 50 };
+    const canRetry = stats.energy >= 20;
+    const isWorldReset = failCount >= 3;
+
+    document.getElementById('defeat-node-name').innerText = (regionName || 'Unknown') + ' has repelled you.';
+    const infoEl = document.getElementById('defeat-info');
+    if (isWorldReset) {
+        infoEl.innerHTML = 'You have failed this node 3 times.<br/><span style="color:#ff4444;font-weight:bold">This world resets.</span>';
+    } else {
+        infoEl.textContent = `Fail count: ${failCount}/3 — fail again and this world resets.${!canRetry ? ' You are too exhausted to retry right now.' : ''}`;
+    }
+
+    const retryBtn = document.getElementById('btn-defeat-retry');
+    const retreatBtn = document.getElementById('btn-defeat-retreat');
+    retryBtn.style.display = (canRetry && !isWorldReset) ? '' : 'none';
+    retreatBtn.innerText = isWorldReset ? 'RESET WORLD' : 'RETREAT TO MAP';
+
+    document.getElementById('defeat-overlay').classList.remove('hidden');
+}
+
+function hideDefeat() {
+    document.getElementById('defeat-overlay').classList.add('hidden');
 }
 
 // --- Node Timer 10 minutes ---
@@ -672,34 +889,51 @@ function triggerNodeEncounter(region) {
     overworldMap.classList.add('hidden');
     regionEncounter.classList.remove('hidden');
 
-    currentRegionName.innerText = region.name.toUpperCase();
-    currentRegionDesc.innerText = region.description;
+    // Populate v2 panel
+    const pFactionName = document.getElementById('v2-faction-name');
+    const pPortrait = document.getElementById('v2-portrait');
+    const pStage = document.getElementById('v2-stage-line');
+    const pNarration = document.getElementById('v2-narration');
+
+    const faction = (worldData.factions || []).find(f => f.id === region.faction_id);
+    if (pFactionName) pFactionName.innerText = region.name.toUpperCase();
+    if (pStage) pStage.innerText = "◆ APPROACH";
+
+    // Show faction portrait (v2: SVG by personality or Mistral-generated image)
+    if (pPortrait) {
+        pPortrait.innerHTML = '';
+        if (faction && faction.portrait_b64) {
+            const img = document.createElement('img');
+            img.src = `data:image/png;base64,${faction.portrait_b64}`;
+            img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:6px;border:2px solid #00ffcc;box-shadow:0 0 16px #00ffcc55;';
+            pPortrait.appendChild(img);
+        } else {
+            pPortrait.innerHTML = getFactionPortraitSVG(faction || { personality: 'aggressive' }, 68);
+        }
+    }
+
+    if (pNarration) {
+        pNarration.innerText = `Entering ${region.name}... The Architect is observing.`;
+        pNarration.className = 'narration-block';
+    }
 
     actionButtons.innerHTML = "";
-    dmText.innerHTML = "<em style='color:#8ab4f8'>Entering node... The Architect is observing.</em>";
-    dmText.style.color = "#8ab4f8";
-
-    // Show faction portrait if available
-    const existingPortrait = document.querySelector('.faction-portrait');
-    if (existingPortrait) existingPortrait.remove();
-    const faction = (worldData.factions || []).find(f => f.id === region.faction_id);
-    if (faction && faction.portrait_b64) {
-        const img = document.createElement('img');
-        img.src = `data:image/png;base64,${faction.portrait_b64}`;
-        img.className = 'faction-portrait';
-        img.title = faction.name;
-        regionEncounter.appendChild(img);
+    
+    // Fallbacks for legacy JS logic
+    if (currentRegionName) currentRegionName.innerText = region.name.toUpperCase();
+    if (currentRegionDesc) currentRegionDesc.innerText = region.description;
+    if (dmText) {
+        dmText.innerHTML = "<em style='color:#8ab4f8'>Entering node... The Architect is observing.</em>";
+        dmText.style.color = "#8ab4f8";
     }
 
     // Dynamic Image Fetch
-    imageLoader.classList.remove('hidden');
     dynamicBg.classList.remove('focus');
     const bgUrl = `http://127.0.0.1:8000/region-image?prompt=${encodeURIComponent(region.description)}`;
     const newBg = new Image();
     newBg.src = bgUrl;
-    newBg.onload = () => { dynamicBg.style.backgroundImage = `url('${bgUrl}')`; dynamicBg.classList.add('focus'); imageLoader.classList.add('hidden'); };
-    newBg.onerror = () => { imageLoader.classList.add('hidden'); };
-
+    newBg.onload = () => { dynamicBg.style.backgroundImage = `url('${bgUrl}')`; dynamicBg.classList.add('focus'); };
+    
     // Play approach SFX
     playSFX('approach');
 
@@ -721,46 +955,100 @@ btnLeaveNode.addEventListener('click', () => {
     stopNodeTimer();
 });
 
+// Defeat overlay buttons
+document.getElementById('btn-defeat-retreat').addEventListener('click', async () => {
+    hideDefeat();
+    if (window._defeatIsWorldReset) {
+        window._conqueredRegions = [];
+        const regionIds = worldData?.regions?.map(r => r.id) || [];
+        regionIds.forEach(id => { failedNodes[id] = 0; });
+        try {
+            await fetch('http://127.0.0.1:8000/reset-world', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id: currentSessionId })
+            });
+        } catch (e) { /* ignore */ }
+        setupMapEngine();
+        showToast('World reset — start from the beginning.', 'danger');
+    }
+});
+
+document.getElementById('btn-defeat-retry').addEventListener('click', async () => {
+    const region = worldData?.regions?.find(r => r.id === (window._defeatedRegionId || ''));
+    if (!region || (window._playerStats?.energy || 0) < 20) return;
+    try {
+        const res = await fetch('http://127.0.0.1:8000/retry-node', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: currentSessionId })
+        });
+        if (res.ok) {
+            const data = await res.json();
+            updateHUD({ energy: data.energy });
+            window._playerStats = { ...window._playerStats, energy: data.energy };
+        }
+    } catch (e) { /* ignore */ }
+    hideDefeat();
+    triggerNodeEncounter(region);
+});
+
 // --- Trophy logic merged above ---
 
-// --- Dynamic Choice Buttons ---
+// --- Dynamic Choice Buttons (v2 style) ---
 function renderChoices(choices, stage) {
-    actionButtons.innerHTML = "";
+    actionButtons.innerHTML = '';
     actionButtons.classList.remove('hidden');
 
-    // Stage badge
-    const badge = document.createElement('div');
-    badge.style.cssText = "color:#00ffcc; font-size:0.85em; margin-bottom:10px; letter-spacing:2px;";
-    badge.innerText = stageLabels[stage] || stage.toUpperCase();
-    actionButtons.appendChild(badge);
+    // Update narration style based on last outcome
+    const narBlock = document.getElementById('v2-narration');
+    if (narBlock) {
+        narBlock.className = 'narration-block outcome-' + (window._lastOutcome || '');
+    }
 
-    if (stage === "complete") {
+    // Stage dots update
+    const stages = ['approach', 'challenge', 'resolution'];
+    document.querySelectorAll('.stage-dot').forEach((dot, i) => {
+        const s = stages[i];
+        const currentIdx = stages.indexOf(stage);
+        if (i < currentIdx) dot.className = 'stage-dot done';
+        else if (i === currentIdx) dot.className = 'stage-dot current';
+        else dot.className = 'stage-dot pending';
+    });
+    const stLabel = document.querySelector('.stage-label');
+    if (stLabel) stLabel.innerText = (stageLabels[stage] || stage).toUpperCase();
+
+    if (stage === 'complete') {
         // Track this region as conquered
         if (currentRegionId && !(window._conqueredRegions || []).includes(currentRegionId)) {
             window._conqueredRegions = window._conqueredRegions || [];
             window._conqueredRegions.push(currentRegionId);
-            updateHUD(); // refresh nodes counter + check boss unlock
+            updateHUD();
             playSFX('conquered');
-            
+            showToast('Node conquered!', 'success');
+
+            // Mark node as conquered on map
+            worldData.regions.forEach(r => {
+                if (r.id === currentRegionId && r.domNode) {
+                    r.domNode.className = 'overworld-node conquered';
+                    r.domNode.querySelector('.node-pulse-ring')?.remove();
+                    const iconEl = r.domNode.querySelector('div');
+                    if (iconEl) iconEl.innerText = '✓';
+                }
+            });
+
             // Destroy enemy sprites for this region
             enemySprites
                 .filter(s => s.regionId === currentRegionId)
                 .forEach(s => { s.celebrate(); setTimeout(() => s.destroy(), 1400); });
-            
-            // Victory Checks
+
             const total = worldData.regions.length;
-            const bossIdx = Math.max(1, total - 1);
             const numConquered = window._conqueredRegions.length;
 
             if (numConquered >= total) {
-                // Game completely won (boss defeated)
-                showTrophy("🏆 WORLD CONQUERED 🏆", `You have secured ${worldData.world_name} and achieved ultimate victory!`, true);
-            } else if (numConquered === bossIdx) {
-                // Unlocked the boss
-                showTrophy("NODE CONQUERED!", "All sub-regions claimed! The final Boss Node is now unlocked on the map.", false);
+                showTrophy('🏆 WORLD CONQUERED 🏆', `You have secured ${worldData.world_name} and achieved ultimate victory!`, true);
             } else {
-                // Regular node won
-                showTrophy("NODE CONQUERED!", "You have resolved the conflict in this region.", false);
+                showTrophy('NODE CONQUERED!', `Region secured. ${total - numConquered} node(s) remaining.`, false);
             }
         }
         return;
@@ -768,15 +1056,16 @@ function renderChoices(choices, stage) {
 
     choices.forEach(choice => {
         const btn = document.createElement('button');
-        btn.className = 'action-btn';
-        btn.title = choice.description; // tooltip on hover
+        btn.className = 'v2-choice-btn';
+        btn.title = choice.description || '';
         btn.innerText = choice.label;
+        btn.addEventListener('mouseenter', e => { e.target.style.background = '#00ffcc1a'; e.target.style.boxShadow = '0 0 12px #00ffcc33'; });
+        btn.addEventListener('mouseleave', e => { e.target.style.background = 'transparent'; e.target.style.boxShadow = 'none'; });
 
-        // Intercept HACK choice for minigame
         if (choice.label.toLowerCase().includes('hack') || choice.id === 'hack') {
             btn.addEventListener('click', () => startMinigame(choice));
         } else {
-            btn.addEventListener('click', () => sendAction(choice.label + ': ' + choice.description));
+            btn.addEventListener('click', () => sendAction(choice.label + ': ' + (choice.description || '')));
         }
         actionButtons.appendChild(btn);
     });
@@ -826,8 +1115,12 @@ function playSFX(eventName) {
 async function sendAction(actionStr, bypassRegionId = null) {
     if (!insideNode) return; // ignore overworld clicks if any leak
     
-    dmText.innerHTML = "Computing probabilities... Data stream active...";
-    dmText.style.color = "#8ab4f8";
+    if (dmText) { dmText.innerHTML = "Computing probabilities... Data stream active..."; dmText.style.color = "#8ab4f8"; }
+    const pNarration = document.getElementById('v2-narration');
+    if (pNarration) {
+        pNarration.innerText = "Computing probabilities... Data stream active...";
+        pNarration.className = 'narration-block';
+    }
     actionButtons.classList.add('hidden'); 
     
     try {
@@ -851,14 +1144,28 @@ async function sendAction(actionStr, bypassRegionId = null) {
             if(dmResponse.outcome === "success") textColor = "#00ffcc";
             if(dmResponse.outcome === "partial") textColor = "#ffcc00";
 
-            dmText.innerText = dmResponse.narration;
-            dmText.style.color = textColor;
+            if (dmText) { dmText.innerText = dmResponse.narration; dmText.style.color = textColor; }
+            if (pNarration) {
+                pNarration.innerText = dmResponse.narration;
+                window._lastOutcome = dmResponse.outcome || 'partial';
+                pNarration.className = 'narration-block outcome-' + window._lastOutcome;
+            }
 
             // Play outcome SFX
             playSFX(dmResponse.outcome || 'partial');
 
             // Update HUD (single source of truth)
             updateHUD({ xp: data.xp, hp: data.hp, energy: data.energy });
+            window._playerStats = { xp: data.xp, hp: data.hp, energy: data.energy, maxHp: 100, maxEnergy: 50 };
+
+            // Defeat: HP hit 0 → show defeat overlay (v2)
+            if (data.defeated && currentRegionId) {
+                const region = worldData?.regions?.find(r => r.id === currentRegionId);
+                failedNodes[currentRegionId] = (failedNodes[currentRegionId] || 0) + 1;
+                setTimeout(() => showDefeat(region?.name || 'Unknown', currentRegionId), 1200);
+                actionButtons.classList.add('hidden');
+                return;
+            }
 
             // Screen Shake for heavy damage
             if (parseInt(dmResponse.state_changes?.hp_delta ?? 0) < -10) {
@@ -875,10 +1182,12 @@ async function sendAction(actionStr, bypassRegionId = null) {
 
             playNarration(dmResponse.narration);
         } else {
-            dmText.innerText = "Error: Architect connection refused.";
+            if (dmText) dmText.innerText = "Error: Architect connection refused.";
+            if (pNarration) pNarration.innerText = "Error: Architect connection refused.";
         }
     } catch(e) {
         actionButtons.classList.remove('hidden');
+
         dmText.innerText = "Critical Fault: Architect unreachable.";
     }
 }

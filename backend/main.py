@@ -40,6 +40,30 @@ class ActionRequest(BaseModel):
     session_id: str = "demo_session"
     region_id: str = ""
 
+class ResetWorldRequest(BaseModel):
+    session_id: str = "demo_session"
+
+@app.post("/reset-world", summary="Reset world progress (3-strike defeat)")
+async def reset_world(request: ResetWorldRequest):
+    """Clear conquered regions when player fails a node 3 times."""
+    session = get_session(request.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    session["conquered_regions"] = []
+    return {"status": "success", "message": "World reset"}
+
+RETRY_ENERGY_COST = 20
+
+@app.post("/retry-node", summary="Deduct energy for retrying a defeated node")
+async def retry_node(request: ResetWorldRequest):
+    """Deduct 20 energy when player retries after defeat."""
+    session = get_session(request.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    player = session["players"][0]
+    player["energy"] = max(0, player["energy"] - RETRY_ENERGY_COST)
+    return {"status": "success", "energy": player["energy"]}
+
 @app.post("/generate-world", summary="Generate a complete game world")
 async def create_world(request: WorldRequest):
     """
@@ -94,7 +118,11 @@ async def player_action(request: ActionRequest):
         state_changes = dm_response['state_changes']
         
         player['xp'] += state_changes['xp_gained']
-        player['hp'] = max(0, min(player['max_hp'], player['hp'] + state_changes['hp_delta']))
+        new_hp = max(0, min(player['max_hp'], player['hp'] + state_changes['hp_delta']))
+        defeated = new_hp <= 0
+        if defeated:
+            new_hp = 15  # Defeat survival (v2 mechanic)
+        player['hp'] = new_hp
         player['energy'] = max(0, min(player['max_energy'], player['energy'] + state_changes['energy_delta']))
         
         if state_changes['loot_dropped']:
@@ -111,7 +139,8 @@ async def player_action(request: ActionRequest):
             "energy": player['energy'],
             "inventory": player['inventory'],
             "stage": dm_response.get("stage", "approach"),
-            "choices": dm_response.get("choices", [])
+            "choices": dm_response.get("choices", []),
+            "defeated": defeated
         }
     except Exception as e:
         logger.error(f"Error processing action: {e}")
