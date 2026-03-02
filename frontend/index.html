@@ -14,8 +14,6 @@
 
     <!-- PRE-GAME SCREENS -->
     <div id="ui-layer" class="active">
-
-      <!-- Screen 1: Login -->
       <div id="login-screen" class="screen active glass">
         <h1 class="logo glow">The Reality Engine</h1>
         <p class="subtitle">Mistral-Powered Infinite Storyverse</p>
@@ -26,21 +24,20 @@
         <button id="btn-next" class="primary-btn pulse">Link Core</button>
       </div>
 
-      <!-- Screen 2: Session Lobby -->
       <div id="lobby-screen" class="screen glass">
         <h2 class="prompt-title glow">Mission Briefing</h2>
-        <p class="subtitle">Do you have an active session to join, or start a new simulation?</p>
+        <p class="subtitle">Join an existing session or start a new simulation?</p>
         <div class="lobby-options">
           <div class="lobby-card">
             <div class="lobby-icon">🌐</div>
             <h3>Create New World</h3>
-            <p>Generate a fresh reality from your imagination. Get a session ID to share with your crew.</p>
+            <p>Generate a fresh reality. You'll receive a session ID to share with your crew.</p>
             <button id="btn-create-session" class="primary-btn" style="margin-top:14px;">Create Session</button>
           </div>
           <div class="lobby-card">
             <div class="lobby-icon">🔗</div>
             <h3>Join Existing Session</h3>
-            <p>Enter a session ID from your crew to warp into their active simulation.</p>
+            <p>Enter a session ID to warp into an active simulation.</p>
             <div class="input-group" style="margin-top:12px;">
               <input type="text" id="join-session-input" placeholder="Paste session ID here..." autocomplete="off">
             </div>
@@ -49,21 +46,20 @@
         </div>
       </div>
 
-      <!-- Screen 3: Rules -->
       <div id="rules-screen" class="screen glass">
         <h2 class="prompt-title glow">Simulation Directives</h2>
         <div style="text-align:left; color:#ccc; line-height:1.8; margin-bottom:20px; font-size:1em;">
           <p><strong style="color:#00ffcc;">OBJECTIVE:</strong> Traverse the overworld and conquer reality nodes.</p>
           <p><strong style="color:#00ffcc;">MOVEMENT:</strong> Use <b>W A S D</b> or Arrow Keys to move your avatar.</p>
           <p><strong style="color:#00ffcc;">INTERACTION:</strong> Walk over a Node and press <b>'E'</b> to enter.</p>
-          <p><strong style="color:#00ffcc;">ENEMIES:</strong> Hostile red avatars roam the map. Watch out!</p>
+          <p><strong style="color:#00ffcc;">ENEMIES:</strong> Hostile red avatars roam the map — they will intercept you!</p>
           <p><strong style="color:#00ffcc;">ESCAPE:</strong> Press <b>ESC</b> to exit a node or close panels.</p>
-          <p><strong style="color:#00ffcc;">COMMS:</strong> Hold <b>V</b> for push-to-talk voice communication.</p>
+          <p><strong style="color:#00ffcc;">COMMS:</strong> Hold <b>V</b> for push-to-talk voice or use the chat panel.</p>
+          <p><strong style="color:#ffcc00;">💡 HINTS:</strong> Hover over any action button to see a description of what it does before committing to it.</p>
         </div>
         <button id="btn-accept-rules" class="primary-btn">Acknowledge</button>
       </div>
 
-      <!-- Screen 4: World Prompt -->
       <div id="prompt-screen" class="screen glass">
         <h2 class="prompt-title glow">Initialize Simulation</h2>
         <p class="subtitle">Define the parameters of the reality Mistral will architect.</p>
@@ -73,7 +69,6 @@
         <button id="btn-generate" class="primary-btn">Engage Generators</button>
       </div>
 
-      <!-- Screen 5: Loading -->
       <div id="loading-screen" class="screen glass">
         <h2 class="glow">Processing Reality...</h2>
         <p class="loading-text" id="loading-status">The Architect is assembling the nodes...</p>
@@ -83,9 +78,10 @@
 
     <!-- MAIN GAME INTERFACE -->
     <div id="game-interface" class="hidden">
-      
+
+      <!-- HUD -->
       <header id="hud-top" class="glass-panel horizontal">
-          <div class="stat">USER_ID: <span id="hud-name" class="highlight">Guest</span></div>
+          <div class="stat">USER: <span id="hud-name" class="highlight">Guest</span></div>
           <div class="stat">XP: <span id="hud-xp" class="highlight">0</span></div>
           <div class="stat">HP: <span id="hud-hp" class="highlight hp-text">100</span>/100</div>
           <div class="stat">ENERGY: <span id="hud-energy" class="highlight energy-text">50</span>/50</div>
@@ -95,6 +91,7 @@
 
       <button id="btn-help" class="help-btn">?</button>
 
+      <!-- Session Badge -->
       <div id="mp-badge" class="mp-badge glass-panel">
         <span style="color:#8ab4f8; font-size:0.75em;">SESSION:</span>
         <code id="mp-session-id" style="color:#fff; font-size:0.8em; margin:0 6px;"></code>
@@ -102,21 +99,23 @@
         <span style="color:#8ab4f8; font-size:0.75em; margin-left:10px;">👥 <span id="mp-player-count">1</span></span>
       </div>
 
-      <div id="main-content">
+      <!-- Game body: main content + chat side by side -->
+      <div id="game-body">
+
+        <div id="main-content">
+
+          <!-- OVERWORLD MAP -->
           <div id="overworld-map">
               <div id="player-avatar" class="avatar-entity player"></div>
           </div>
 
+          <!-- REGION ENCOUNTER VIEW -->
           <div id="region-encounter" class="hidden">
               <div class="sidebar-column">
                   <aside id="regions-panel" class="glass-panel">
-                    <h3 id="current-region-name" class="panel-header glow" style="font-size:1.6em;">NODE</h3>
+                    <h3 id="current-region-name" class="panel-header glow" style="font-size:1.4em;">NODE</h3>
                     <p id="current-region-desc" class="subtitle sm"></p>
                     <div id="image-loading-spinner" class="spinner-small hidden"></div>
-                  </aside>
-                  <aside id="inventory-panel" class="glass-panel" style="margin-top:16px;">
-                    <h3 class="panel-header glow">HARDWARE / LOOT</h3>
-                    <div id="inventory-list" class="subtitle sm">No hardware acquired.</div>
                   </aside>
                   <button id="btn-leave-node" class="primary-btn" style="margin-top:16px;">← Exit Node</button>
               </div>
@@ -141,25 +140,28 @@
                 </div>
               </main>
           </div>
-      </div>
 
-      <!-- RIGHT-SIDE COLLAPSIBLE CHAT + VOICE PANEL -->
-      <div id="chat-sidebar" class="chat-sidebar glass-panel">
-        <div id="chat-sidebar-header">
-          <span style="color:#00ffcc; font-size:0.85em; letter-spacing:1px;">CO-OP COMMS</span>
-          <div style="display:flex; gap:8px; align-items:center;">
-            <button id="btn-voice" class="voice-btn" title="Hold V or click for push-to-talk">🎙️</button>
-            <button id="btn-toggle-chat" class="small-btn" title="Collapse chat">◀</button>
+        </div><!-- end #main-content -->
+
+        <!-- RIGHT-SIDE COLLAPSIBLE CHAT PANEL -->
+        <div id="chat-sidebar" class="chat-sidebar">
+          <div id="chat-sidebar-header">
+            <span>CO-OP COMMS</span>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <button id="btn-voice" class="voice-btn" title="Hold V for push-to-talk">🎙️</button>
+              <button id="btn-toggle-chat" class="small-btn" title="Collapse chat">◀</button>
+            </div>
+          </div>
+          <div id="chat-feed"></div>
+          <div id="chat-input-row">
+            <input id="chat-input" type="text" placeholder="Type a message...">
+            <button id="btn-chat-send" class="small-btn">↩</button>
           </div>
         </div>
-        <div id="chat-feed"></div>
-        <div id="chat-input-row">
-          <input id="chat-input" type="text" placeholder="Type a message...">
-          <button id="btn-chat-send" class="small-btn">↩</button>
-        </div>
-      </div>
 
-    </div>
+      </div><!-- end #game-body -->
+
+    </div><!-- end #game-interface -->
 
     <script type="module" src="/main.js"></script>
   </body>

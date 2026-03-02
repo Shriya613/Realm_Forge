@@ -26,7 +26,6 @@ const playerAvatar = document.getElementById('player-avatar');
 
 // Region Details
 const dynamicBg = document.getElementById('dynamic-bg');
-const inventoryList = document.getElementById('inventory-list');
 const currentRegionName = document.getElementById('current-region-name');
 const currentRegionDesc = document.getElementById('current-region-desc');
 const dmText = document.getElementById('dm-text');
@@ -269,6 +268,7 @@ btnToggleChat.addEventListener('click', () => {
     chatCollapsed = !chatCollapsed;
     chatSidebar.classList.toggle('collapsed', chatCollapsed);
     btnToggleChat.innerText = chatCollapsed ? '▶' : '◀';
+    btnToggleChat.title = chatCollapsed ? 'Expand chat' : 'Collapse chat';
 });
 
 // Voice PTT — click to toggle OR hold V
@@ -632,17 +632,6 @@ async function sendAction(actionStr, bypassRegionId = null) {
             hudHp.innerText = data.hp;
             hudEnergy.innerText = data.energy;
             
-            // Re-render inventory
-            if (data.inventory && data.inventory.length > 0) {
-                inventoryList.innerHTML = "";
-                data.inventory.forEach(item => {
-                    const iSlot = document.createElement('div');
-                    iSlot.className = "inv-item";
-                    iSlot.innerText = item;
-                    inventoryList.appendChild(iSlot);
-                });
-            }
-            
             // Screen Shake for heavy damage
             if (dmResponse.state_changes.hp_delta < -10) {
                  dynamicBg.style.transform = "translateX(10px)";
@@ -673,11 +662,28 @@ async function playNarration(text) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text: text })
         });
+        
         if (response.ok) {
             const blob = await response.blob();
+            // Verify we actually got audio bytes, not a JSON error
+            if (!blob.type.includes('audio')) {
+                const errText = await blob.text();
+                console.warn('[Narration] Unexpected response type:', blob.type, errText);
+                return;
+            }
             const audioUrl = URL.createObjectURL(blob);
             const audio = new Audio(audioUrl);
-            audio.play();
+            audio.onended = () => URL.revokeObjectURL(audioUrl); // cleanup memory
+            await audio.play();
+        } else {
+            // Parse error body for debugging
+            const errBody = await response.text();
+            console.warn(`[Narration] ${response.status} error:`, errBody);
+            if (response.status === 401) {
+                addChatMsg('⚠️ Voice offline — ElevenLabs key needs text_to_speech permission.', 'system');
+            }
         }
-    } catch(e) {}
+    } catch(e) {
+        console.warn('[Narration] fetch failed:', e.message);
+    }
 }

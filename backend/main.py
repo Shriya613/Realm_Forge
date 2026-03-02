@@ -97,7 +97,7 @@ async def player_action(request: ActionRequest):
 
 class NarrationRequest(BaseModel):
     text: str
-    voice_id: str = "JBFqnCBcs6831ApcRzwK"
+    voice_id: str = "JBFqnCBsd6RMkjVDRZzb"  # George — warm British storyteller
 
 @app.post("/narration", summary="Generate ElevenLabs Narration")
 async def get_narration(request: NarrationRequest):

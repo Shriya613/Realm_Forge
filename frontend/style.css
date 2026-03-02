@@ -120,16 +120,23 @@ h2 { font-family: 'Audiowide', cursive; color: #00ffcc; }
 
 /* HUD Header */
 #hud-top {
-  display: flex; justify-content: space-between; padding: 15px 30px;
-  margin: 20px 40px; font-family: 'Share Tech Mono', monospace; font-size: 1.1em;
+  display: flex; justify-content: space-between; padding: 10px 20px;
+  margin: 16px 20px 0; font-family: 'Share Tech Mono', monospace; font-size: 0.95em;
   letter-spacing: 1px; color: #8ab4f8; border-bottom: 2px solid rgba(0,255,204,0.3);
+  flex-shrink: 0;
 }
 .highlight { color: #00ffcc; font-weight: bold; }
 .status-ok { color: #00ff00; text-shadow: 0 0 8px #00ff00;}
 
-/* Main content grid */
+/* Game body row: map/content + chat sidebar side by side */
+#game-body {
+  display: flex; flex: 1; overflow: hidden; gap: 0;
+  margin: 12px 20px 20px;
+}
+
+/* Main content fills the remaining space */
 #main-content {
-  display: flex; flex: 1; margin: 0 40px 40px; gap: 40px; overflow: hidden;
+  flex: 1; display: flex; gap: 20px; overflow: hidden; min-width: 0;
 }
 
 #regions-panel {
@@ -313,19 +320,42 @@ h3.panel-header { font-family: 'Audiowide', cursive; color: #00ffcc; margin: 0 0
 
 /* ─── RIGHT-SIDE COLLAPSIBLE CHAT SIDEBAR ─── */
 .chat-sidebar {
-  position: absolute; right: 0; top: 80px;
-  width: 280px; height: calc(100% - 100px);
-  z-index: 600; display: flex; flex-direction: column;
-  padding: 14px; border-radius: 12px 0 0 12px;
+  display: flex; flex-direction: column;
+  width: 270px; min-width: 270px; /* takes real space in the flex row */
+  flex-shrink: 0;
+  background: rgba(14, 18, 30, 0.75);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(0,255,204,0.2);
+  border-radius: 12px;
+  padding: 12px;
   font-family: 'Share Tech Mono', monospace;
-  transition: transform 0.3s ease;
+  transition: min-width 0.3s ease, width 0.3s ease, padding 0.3s ease;
+  overflow: hidden;
+  position: relative;
 }
-.chat-sidebar.collapsed { transform: translateX(252px); }
+
+/* Collapsed: shrink to a thin tab showing only the arrow handle */
+.chat-sidebar.collapsed {
+  width: 36px; min-width: 36px; padding: 12px 4px;
+}
+.chat-sidebar.collapsed #chat-sidebar-header span,
+.chat-sidebar.collapsed #chat-feed,
+.chat-sidebar.collapsed #chat-input-row { display: none; }
+
+/* Vertical label shown when collapsed */
+.chat-sidebar.collapsed::before {
+  content: 'COMMS';
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  color: #00ffcc; font-size: 0.7em; letter-spacing: 3px;
+  white-space: nowrap;
+}
 
 #chat-sidebar-header {
   display: flex; justify-content: space-between;
   align-items: center; margin-bottom: 10px;
   padding-bottom: 8px; border-bottom: 1px solid rgba(0,255,204,0.2);
+  flex-shrink: 0;
 }
 
 #chat-feed {
@@ -343,6 +373,7 @@ h3.panel-header { font-family: 'Audiowide', cursive; color: #00ffcc; margin: 0 0
 #chat-input-row {
   display: flex; gap: 6px; margin-top: 10px;
   padding-top: 8px; border-top: 1px solid rgba(0,255,204,0.15);
+  flex-shrink: 0;
 }
 #chat-input {
   flex: 1; padding: 6px 8px; border-radius: 4px;
@@ -354,9 +385,9 @@ h3.panel-header { font-family: 'Audiowide', cursive; color: #00ffcc; margin: 0 0
 /* Voice Button */
 .voice-btn {
   background: rgba(0,136,255,0.2); border: 1px solid #0088ff;
-  border-radius: 50%; width: 30px; height: 30px; cursor: pointer;
-  font-size: 14px; display: flex; align-items: center; justify-content: center;
-  transition: all 0.2s;
+  border-radius: 50%; width: 28px; height: 28px; cursor: pointer;
+  font-size: 13px; display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s; flex-shrink: 0;
 }
 .voice-btn:hover, .voice-btn.active { background: #0088ff; box-shadow: 0 0 12px #0088ff; }
 .voice-btn.live { background: #ff3333; border-color: #ff3333; animation: pulse-ring 1s ease-in-out infinite; }
@@ -376,7 +407,6 @@ h3.panel-header { font-family: 'Audiowide', cursive; color: #00ffcc; margin: 0 0
 .lobby-card p { color: #aaa; font-size: 0.85em; line-height: 1.5; }
 .lobby-icon { font-size: 2.5em; }
 #lobby-screen { max-width: 700px !important; }
-
 
 /* Peer avatars */
 .avatar-entity.peer {
