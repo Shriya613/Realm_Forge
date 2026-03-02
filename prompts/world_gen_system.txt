@@ -54,5 +54,6 @@ OUTPUT SCHEMA:
     "adaptive_behavior": "string (1 sentence)",
     "weakness": "string (1 sentence)",
     "voice_tone": "string"
-  }
+  },
+  "win_condition": "string — one sentence: what must the player do to win, e.g. 'Conquer all 3 nodes to face the Dragon King at the Obsidian Spire'"
 }

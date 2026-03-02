@@ -1,3 +1,4 @@
+import { PushToTalk } from './voxtral.js';
 let playerName = "Guest";
 let currentSessionId = "demo_session_" + Math.floor(Math.random() * 10000);
 let worldData = null;
@@ -22,7 +23,7 @@ const hudStatus = document.getElementById('hud-status');
 const hudNodes  = document.getElementById('hud-nodes');
 const hudBossStat = document.getElementById('hud-boss-stat');
 
-// ── Central HUD Update ─────────────────────────────────────────────────────
+// ── Central HUD Update + Progress Bar ────────────────────────────────────
 function updateHUD(stats = {}) {
     if (stats.xp     !== undefined) hudXp.innerText     = parseInt(stats.xp)     || 0;
     if (stats.hp     !== undefined) hudHp.innerText     = parseInt(stats.hp)     || 0;
@@ -33,10 +34,23 @@ function updateHUD(stats = {}) {
         const regions   = worldData.regions || [];
         const conquered = (window._conqueredRegions || []).length;
         const total     = regions.length;
-        const bossIdx   = total - 1;          // last region is the boss
+        const bossIdx   = Math.max(1, total - 1);  // last region is boss
         const bossUnlocked = conquered >= bossIdx && total > 1;
 
+        // HUD badge
         hudNodes.innerText = `${conquered}/${bossIdx}`;
+
+        // Progress bar
+        const pct = Math.min(100, (conquered / bossIdx) * 100);
+        const fill = document.getElementById('progress-fill');
+        const ptext = document.getElementById('progress-text');
+        const pbar = document.getElementById('progress-bar');
+        const wc = document.getElementById('win-condition');
+        if (fill) fill.style.width = `${pct}%`;
+        if (ptext) ptext.textContent = bossUnlocked ? '⚔️ BOSS UNLOCKED' : `${conquered} / ${bossIdx} NODES`;
+        if (pbar) pbar.classList.toggle('boss-ready', bossUnlocked);
+        if (wc && worldData.win_condition) wc.textContent = `OBJECTIVE: ${worldData.win_condition}`;
+
         if (bossUnlocked) {
             hudBossStat.style.display = '';
             if (conquered < total) {
@@ -223,6 +237,19 @@ function enterGame() {
         // Show session ID + initialize WebSocket
         document.getElementById('mp-session-id').innerText = currentSessionId;
         initWebSocket(currentSessionId);
+        
+        // Init Voxtral push-to-talk — voice commands feed into sendAction
+        if (!window._ptt) {
+            window._ptt = new PushToTalk((transcribedText) => {
+                // Transcribed voice command ➜ send as action (same as clicking a button)
+                if (transcribedText && transcribedText.length > 1) {
+                    sendAction(transcribedText);
+                }
+            });
+        }
+
+        // Init progress bar from world data
+        updateHUD();
         
         setupMapEngine();
     }, 500);

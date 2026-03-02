@@ -12,6 +12,7 @@ from backend.state_store import create_session, get_session, update_session
 from backend.narration import generate_narration
 from backend.hf_image import generate_region_image
 from backend.ws_manager import manager
+from backend.voice import transcribe_audio
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -99,6 +100,10 @@ class NarrationRequest(BaseModel):
     text: str
     voice_id: str = "JBFqnCBcs6831ApcRzwK"
 
+class TranscribeRequest(BaseModel):
+    audio_b64: str
+    language: str = "en"
+
 @app.post("/narration", summary="Generate ElevenLabs Narration")
 async def get_narration(request: NarrationRequest):
     try:
@@ -117,6 +122,18 @@ async def get_region_image(prompt: str):
     except Exception as e:
         logger.error(f"Image generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/transcribe", summary="Transcribe player voice via Voxtral")
+async def transcribe_endpoint(request: TranscribeRequest):
+    """Receive base64 audio from frontend PTT, return transcribed text via Voxtral."""
+    try:
+        text = await transcribe_audio(request.audio_b64, request.language)
+        logger.info(f"[Voxtral] Transcribed: '{text}'")
+        return {"status": "success", "text": text}
+    except Exception as e:
+        logger.error(f"[Voxtral] Transcription failed: {e}")
+        return {"status": "error", "text": "", "error": str(e)}
 
 
 # ─── WEBSOCKET: MULTIPLAYER ────────────────────────────────────────────────

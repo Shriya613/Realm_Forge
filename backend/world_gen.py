@@ -57,6 +57,7 @@ class World(BaseModel):
     regions: List[Region]
     quests: List[Quest]
     boss: Boss
+    win_condition: Optional[str] = None
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
