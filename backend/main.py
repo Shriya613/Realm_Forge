@@ -177,6 +177,17 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, player_name:
         })
         logger.info(f"[WS] {player_name} disconnected from session {session_id}")
 
+@app.get("/session/{session_id}", summary="Get world data for an existing session")
+async def get_session_data(session_id: str):
+    session = get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {
+        "session_id": session_id,
+        "world": session.get("world"),
+        "players": [p["name"] for p in session.get("players", [])]
+    }
+
 @app.get("/")
 def read_root():
     return {"message": "Realm Forge API running. WebSocket: ws://localhost:8000/ws/{session_id}/{player_name}"}

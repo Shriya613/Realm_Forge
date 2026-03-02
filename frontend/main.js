@@ -45,6 +45,8 @@ let cursorDirection = 1;
 // Default starting background
 dynamicBg.style.backgroundImage = "url('https://images.unsplash.com/photo-1518005020951-eccb494ad742?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80')";
 
+const lobbyScreen = document.getElementById('lobby-screen');
+
 // --- FLOW: SCREENS ---
 const btnHelp = document.getElementById('btn-help');
 if (btnHelp) {
@@ -54,21 +56,62 @@ if (btnHelp) {
         uiLayer.classList.add('active');
     });
 }
+
 document.getElementById('btn-next').addEventListener('click', () => {
     const nameInput = document.getElementById('char-name').value.trim();
     if (nameInput) {
         playerName = nameInput.toUpperCase();
         hudName.innerText = playerName;
         loginScreen.classList.remove('active');
-        setTimeout(() => rulesScreen.classList.add('active'), 400); 
+        setTimeout(() => lobbyScreen.classList.add('active'), 400);
     } else {
         alert("Enter your callsign protocol.");
     }
 });
 
+// Lobby: Create new session
+document.getElementById('btn-create-session').addEventListener('click', () => {
+    lobbyScreen.classList.remove('active');
+    setTimeout(() => rulesScreen.classList.add('active'), 400);
+});
+
+// Lobby: Join existing session
+document.getElementById('btn-join-lobby').addEventListener('click', () => {
+    const joinId = document.getElementById('join-session-input').value.trim();
+    if (joinId) {
+        currentSessionId = joinId;
+        document.getElementById('mp-session-id').innerText = currentSessionId;
+        lobbyScreen.classList.remove('active');
+        // Joining an existing session — skip world gen, go straight to game screen
+        setTimeout(() => {
+            loadingScreen.classList.add('active');
+            loadingStatus.innerText = "Syncing to session " + currentSessionId + "...";
+            // Fetch existing world from backend session
+            joinExistingSession(currentSessionId);
+        }, 400);
+    } else {
+        alert("Paste a valid session ID.");
+    }
+});
+
+async function joinExistingSession(sessionId) {
+    try {
+        const res = await fetch(`http://127.0.0.1:8000/session/${sessionId}`);
+        if (res.ok) {
+            const data = await res.json();
+            worldData = data.world;
+            loadingStatus.innerText = "Session linked. Entering reality...";
+            setTimeout(() => enterGame(), 1000);
+        } else {
+            loadingStatus.innerText = "Session not found. Please check the ID.";
+        }
+    } catch (e) {
+        loadingStatus.innerText = "Could not reach server. Check your connection.";
+    }
+}
+
 document.getElementById('btn-accept-rules').addEventListener('click', () => {
     rulesScreen.classList.remove('active');
-    // If we've already generated a world, close uiLayer entirely. Otherwise, show prompt screen.
     if (worldData) {
         uiLayer.classList.remove('active');
         setTimeout(() => uiLayer.classList.add('hidden'), 400);
@@ -212,22 +255,70 @@ function addChatMsg(text, cls = '') {
     chatFeed.scrollTop = chatFeed.scrollHeight;
 }
 
+// ─── MULTIPLAYER: CHAT SIDEBAR + VOICE PTT ─────────────────────────────────────
+const chatSidebar = document.getElementById('chat-sidebar');
+const btnToggleChat = document.getElementById('btn-toggle-chat');
+const btnVoice = document.getElementById('btn-voice');
+let chatCollapsed = false;
+let voiceActive = false;
+let mediaRecorder = null;
+let audioChunks = [];
+
+// Collapse/expand chat
+btnToggleChat.addEventListener('click', () => {
+    chatCollapsed = !chatCollapsed;
+    chatSidebar.classList.toggle('collapsed', chatCollapsed);
+    btnToggleChat.innerText = chatCollapsed ? '▶' : '◀';
+});
+
+// Voice PTT — click to toggle OR hold V
+btnVoice.addEventListener('click', () => toggleVoice());
+window.addEventListener('keydown', e => { if (e.key === 'v' && !e.repeat && !insideNode) startVoice(); });
+window.addEventListener('keyup', e => { if (e.key === 'v') stopVoice(); });
+
+function toggleVoice() {
+    if (voiceActive) stopVoice(); else startVoice();
+}
+
+async function startVoice() {
+    if (voiceActive) return;
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        voiceActive = true;
+        btnVoice.classList.add('live');
+        addChatMsg('🎙️ Voice active — speak now', 'system');
+        
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+        mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+        mediaRecorder.onstop = async () => {
+            const blob = new Blob(audioChunks, { type: 'audio/webm' });
+            // Convert to base64 and relay over WebSocket to peers
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                wsSend({ type: 'voice', data: reader.result, player: playerName });
+            };
+            reader.readAsDataURL(blob);
+            stream.getTracks().forEach(t => t.stop());
+        };
+        mediaRecorder.start();
+    } catch (e) {
+        addChatMsg('Microphone access denied.', 'system');
+    }
+}
+
+function stopVoice() {
+    if (!voiceActive) return;
+    voiceActive = false;
+    btnVoice.classList.remove('live');
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+}
+
 // Multiplayer UI controls
 document.getElementById('btn-copy-session').addEventListener('click', () => {
     navigator.clipboard.writeText(currentSessionId);
-    document.getElementById('btn-copy-session').innerText = '✅ Copied!';
-    setTimeout(() => document.getElementById('btn-copy-session').innerText = '📋 Copy', 2000);
-});
-
-document.getElementById('btn-join-session').addEventListener('click', () => {
-    const newSessionId = document.getElementById('mp-join-input').value.trim();
-    if (newSessionId) {
-        currentSessionId = newSessionId;
-        document.getElementById('mp-session-id').innerText = currentSessionId;
-        if (ws) ws.close();
-        initWebSocket(currentSessionId);
-        addChatMsg(`Switched to session: ${newSessionId}`, 'system');
-    }
+    document.getElementById('btn-copy-session').innerText = '✅';
+    setTimeout(() => document.getElementById('btn-copy-session').innerText = '📋', 2000);
 });
 
 document.getElementById('btn-chat-send').addEventListener('click', () => sendChatMessage());

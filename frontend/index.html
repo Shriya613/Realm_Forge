@@ -7,21 +7,18 @@
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
-    <!-- Fullscreen dynamic background image -->
     <div id="dynamic-bg"></div>
-    
-    <!-- Background Audio Loop -->
     <audio id="bg-music" loop preload="auto">
         <source src="https://cdn.pixabay.com/download/audio/2022/10/25/audio_24a2cb5ee2.mp3?filename=cyberpunk-2099-10701.mp3" type="audio/mpeg">
     </audio>
 
-    <!-- UI Overlay container (Pre-Game) -->
+    <!-- PRE-GAME SCREENS -->
     <div id="ui-layer" class="active">
+
       <!-- Screen 1: Login -->
       <div id="login-screen" class="screen active glass">
         <h1 class="logo glow">The Reality Engine</h1>
         <p class="subtitle">Mistral-Powered Infinite Storyverse</p>
-        
         <div class="input-group">
           <label>Identify Protocol</label>
           <input type="text" id="char-name" placeholder="Enter your callsign..." autocomplete="off">
@@ -29,30 +26,54 @@
         <button id="btn-next" class="primary-btn pulse">Link Core</button>
       </div>
 
-      <!-- Screen 1.5: Rules -->
+      <!-- Screen 2: Session Lobby -->
+      <div id="lobby-screen" class="screen glass">
+        <h2 class="prompt-title glow">Mission Briefing</h2>
+        <p class="subtitle">Do you have an active session to join, or start a new simulation?</p>
+        <div class="lobby-options">
+          <div class="lobby-card">
+            <div class="lobby-icon">🌐</div>
+            <h3>Create New World</h3>
+            <p>Generate a fresh reality from your imagination. Get a session ID to share with your crew.</p>
+            <button id="btn-create-session" class="primary-btn" style="margin-top:14px;">Create Session</button>
+          </div>
+          <div class="lobby-card">
+            <div class="lobby-icon">🔗</div>
+            <h3>Join Existing Session</h3>
+            <p>Enter a session ID from your crew to warp into their active simulation.</p>
+            <div class="input-group" style="margin-top:12px;">
+              <input type="text" id="join-session-input" placeholder="Paste session ID here..." autocomplete="off">
+            </div>
+            <button id="btn-join-lobby" class="primary-btn" style="margin-top:10px;">Join Session</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Screen 3: Rules -->
       <div id="rules-screen" class="screen glass">
         <h2 class="prompt-title glow">Simulation Directives</h2>
-        <div style="text-align:left; color:#ccc; line-height:1.6; margin-bottom:20px; font-size:1em;">
-          <p><strong style="color:#00ffcc;">OBJECTIVE:</strong> Traverse the generated overworld and conquer reality nodes.</p>
-          <p><strong style="color:#00ffcc;">MOVEMENT:</strong> Use <b>W, A, S, D</b> or Arrow Keys to move your avatar in the map.</p>
-          <p><strong style="color:#00ffcc;">INTERACTION:</strong> Walk over a Node and press <b>'E'</b> to enter it.</p>
-          <p><strong style="color:#00ffcc;">ENTITIES:</strong> Watch out for hostile Red Avatars roaming the map. They will intercept you!</p>
+        <div style="text-align:left; color:#ccc; line-height:1.8; margin-bottom:20px; font-size:1em;">
+          <p><strong style="color:#00ffcc;">OBJECTIVE:</strong> Traverse the overworld and conquer reality nodes.</p>
+          <p><strong style="color:#00ffcc;">MOVEMENT:</strong> Use <b>W A S D</b> or Arrow Keys to move your avatar.</p>
+          <p><strong style="color:#00ffcc;">INTERACTION:</strong> Walk over a Node and press <b>'E'</b> to enter.</p>
+          <p><strong style="color:#00ffcc;">ENEMIES:</strong> Hostile red avatars roam the map. Watch out!</p>
+          <p><strong style="color:#00ffcc;">ESCAPE:</strong> Press <b>ESC</b> to exit a node or close panels.</p>
+          <p><strong style="color:#00ffcc;">COMMS:</strong> Hold <b>V</b> for push-to-talk voice communication.</p>
         </div>
         <button id="btn-accept-rules" class="primary-btn">Acknowledge</button>
       </div>
 
-      <!-- Screen 2: World Prompt -->
+      <!-- Screen 4: World Prompt -->
       <div id="prompt-screen" class="screen glass">
         <h2 class="prompt-title glow">Initialize Simulation</h2>
         <p class="subtitle">Define the parameters of the reality Mistral will architect.</p>
-        
         <div class="input-group">
           <textarea id="world-prompt" rows="4" placeholder="e.g. A dystopian cyberpunk megacity run by neon cartels and rogue AI..."></textarea>
         </div>
         <button id="btn-generate" class="primary-btn">Engage Generators</button>
       </div>
 
-      <!-- Screen 3: Loading -->
+      <!-- Screen 5: Loading -->
       <div id="loading-screen" class="screen glass">
         <h2 class="glow">Processing Reality...</h2>
         <p class="loading-text" id="loading-status">The Architect is assembling the nodes...</p>
@@ -60,98 +81,81 @@
       </div>
     </div>
 
-    <!-- Main Game Interface (Hidden initially) -->
+    <!-- MAIN GAME INTERFACE -->
     <div id="game-interface" class="hidden">
       
-      <!-- Top HUD -->
       <header id="hud-top" class="glass-panel horizontal">
           <div class="stat">USER_ID: <span id="hud-name" class="highlight">Guest</span></div>
-          <div class="stat">SYNC_LEVEL: <span id="hud-xp" class="highlight">0</span> XP</div>
+          <div class="stat">XP: <span id="hud-xp" class="highlight">0</span></div>
           <div class="stat">HP: <span id="hud-hp" class="highlight hp-text">100</span>/100</div>
           <div class="stat">ENERGY: <span id="hud-energy" class="highlight energy-text">50</span>/50</div>
-          <div class="stat">REALITY_CORE: <span id="hud-world" class="highlight">Loading...</span></div>
+          <div class="stat">WORLD: <span id="hud-world" class="highlight">—</span></div>
           <div class="stat">STATUS: <span id="hud-status" class="status-ok">ONLINE</span></div>
       </header>
-      
+
       <button id="btn-help" class="help-btn">?</button>
 
-      <!-- Multiplayer Panel -->
-      <div id="mp-panel" class="mp-panel glass-panel">
-        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-          <span style="color:#00ffcc; font-size:0.85em; letter-spacing:1px;">SESSION ID:</span>
-          <code id="mp-session-id" style="color:#fff; font-size:0.85em;"></code>
-          <button id="btn-copy-session" class="small-btn">📋 Copy</button>
-        </div>
-        <div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-          <input id="mp-join-input" type="text" placeholder="Paste session ID to join..." style="flex:1; padding:5px 8px; border-radius:4px; border:1px solid #00ffcc; background:#111; color:#fff; font-size:0.85em;">
-          <button id="btn-join-session" class="small-btn">Join</button>
-        </div>
-        <div id="mp-players-list" style="margin-top:8px; color:#8ab4f8; font-size:0.8em;">Players online: <span id="mp-player-count">1</span></div>
+      <div id="mp-badge" class="mp-badge glass-panel">
+        <span style="color:#8ab4f8; font-size:0.75em;">SESSION:</span>
+        <code id="mp-session-id" style="color:#fff; font-size:0.8em; margin:0 6px;"></code>
+        <button id="btn-copy-session" class="small-btn">📋</button>
+        <span style="color:#8ab4f8; font-size:0.75em; margin-left:10px;">👥 <span id="mp-player-count">1</span></span>
       </div>
 
-      <!-- Layout for Main interaction -->
       <div id="main-content">
-          
-          <!-- OVERWORLD MAP (Full roaming grid) -->
           <div id="overworld-map">
               <div id="player-avatar" class="avatar-entity player"></div>
-              <!-- Regions and Enemies generated via JS -->
           </div>
 
-          <!-- REGION ENCOUNTER VIEW (Hidden initially, active when inside a node) -->
           <div id="region-encounter" class="hidden">
-              <!-- Sidebar: Nodes & Inventory -->
               <div class="sidebar-column">
                   <aside id="regions-panel" class="glass-panel">
-                    <h3 id="current-region-name" class="panel-header glow" style="font-size:1.8em;">NODE</h3>
-                    <p id="current-region-desc" class="subtitle sm">Select a local node to warp to a new sector of reality.</p>
+                    <h3 id="current-region-name" class="panel-header glow" style="font-size:1.6em;">NODE</h3>
+                    <p id="current-region-desc" class="subtitle sm"></p>
                     <div id="image-loading-spinner" class="spinner-small hidden"></div>
                   </aside>
-
-                  <aside id="inventory-panel" class="glass-panel" style="margin-top: 20px;">
+                  <aside id="inventory-panel" class="glass-panel" style="margin-top:16px;">
                     <h3 class="panel-header glow">HARDWARE / LOOT</h3>
                     <div id="inventory-list" class="subtitle sm">No hardware acquired.</div>
                   </aside>
-                  
-                  <button id="btn-leave-node" class="primary-btn" style="margin-top:20px;">Exit Node (Map)</button>
+                  <button id="btn-leave-node" class="primary-btn" style="margin-top:16px;">← Exit Node</button>
               </div>
 
-              <!-- Main Dialogue / Focus Area -->
               <main id="interaction-area">
                 <div class="spacer"></div>
-
-                <!-- Minigame Overlay (Hidden) -->
                 <div id="minigame-overlay" class="glass-panel hidden">
-                    <h3 class="panel-header glow" style="color:#ff00cc; text-align:center;">HACKING MATRIX INITIATED</h3>
-                    <p style="text-align:center; color:#fff;">Stop the cursor in the <span style="color:#00ff00;">GREEN ZONE</span> to breach security!</p>
+                    <h3 class="panel-header glow" style="color:#ff00cc; text-align:center;">HACKING MATRIX</h3>
+                    <p style="text-align:center; color:#fff;">Stop cursor in the <span style="color:#00ff00;">GREEN ZONE</span>!</p>
                     <div id="hack-bar-container">
                         <div id="hack-target-zone"></div>
                         <div id="hack-cursor"></div>
                     </div>
-                    <div style="text-align:center; margin-top: 20px;">
-                        <button id="btn-hack-stop" class="primary-btn" style="width: auto;">BREACH!</button>
+                    <div style="text-align:center; margin-top:20px;">
+                        <button id="btn-hack-stop" class="primary-btn" style="width:auto;">BREACH!</button>
                     </div>
                 </div>
-
-                <!-- Dialogue Box -->
                 <div id="dialogue-box" class="glass-panel chat-mode">
                     <h4 class="architect-title">THE ARCHITECT</h4>
-                    <div id="dm-text" class="dm-dialogue">Initialization complete. Select a node parameter to proceed.</div>
-                    
-                    <div id="action-buttons">
-                        <!-- Dynamically populated by main.js based on Mistral's response -->
-                    </div>
+                    <div id="dm-text" class="dm-dialogue">Initialization complete.</div>
+                    <div id="action-buttons"></div>
                 </div>
               </main>
           </div>
       </div>
 
-      <!-- In-game chat / event feed -->
-      <div id="chat-panel" class="chat-panel glass-panel">
+      <!-- RIGHT-SIDE COLLAPSIBLE CHAT + VOICE PANEL -->
+      <div id="chat-sidebar" class="chat-sidebar glass-panel">
+        <div id="chat-sidebar-header">
+          <span style="color:#00ffcc; font-size:0.85em; letter-spacing:1px;">CO-OP COMMS</span>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button id="btn-voice" class="voice-btn" title="Hold V or click for push-to-talk">🎙️</button>
+            <button id="btn-toggle-chat" class="small-btn" title="Collapse chat">◀</button>
+          </div>
+        </div>
         <div id="chat-feed"></div>
-        <div style="display:flex; gap:8px; margin-top:8px;">
-          <input id="chat-input" type="text" placeholder="Send a message to co-op players..." style="flex:1; padding:6px 10px; border-radius:4px; border:1px solid #333; background:#111; color:#fff; font-size:0.85em;">
-          <button id="btn-chat-send" class="small-btn">Send</button>
+        <div id="chat-input-row">
+          <input id="chat-input" type="text" placeholder="Type a message...">
+          <button id="btn-chat-send" class="small-btn">↩</button>
         </div>
       </div>
 
