@@ -17,10 +17,10 @@ RESPONSE FORMAT (JSON only, no markdown, no preamble):
   ],
   "outcome": "success | partial | failure",
   "state_changes": {
-    "xp_gained": "integer 0-30",
-    "hp_delta": "integer (negative for damage, positive for heal)",
-    "energy_delta": "integer",
-    "loot_dropped": ["item names or empty array"],
+    "xp_gained": 10,
+    "hp_delta": -5,
+    "energy_delta": -10,
+    "loot_dropped": [],
     "region_status": "conquered | contested | lost | unchanged"
   }
 }
@@ -31,3 +31,8 @@ RULES FOR CHOICES:
 - At "challenge" stage: choices must reflect the core conflict: fight, trick, negotiate, flee, etc.
 - At "resolution" stage: choices are about claiming reward, securing the region, or leaving.
 - After "complete", do not offer more choices — the region is done.
+
+CONTEXT MANAGEMENT:
+- You will receive only the last 2 exchanges as history. Treat each beat as fully self-contained.
+- Do NOT reference or repeat events older than 2 turns. The story always moves forward, never back.
+- If history is empty, this is the opening beat — establish the scene fresh.
