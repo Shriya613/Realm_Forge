@@ -5,8 +5,8 @@
  */
 
 const SPRITE_TYPES = {
-    player: { label: '🦊', cls: 'sprite-player' },
-    enemy:  { label: '💀', cls: 'sprite-enemy'  },
+    player: { label: '🧝', cls: 'sprite-player' },
+    enemy:  { label: '👺', cls: 'sprite-enemy'  },
     npc:    { label: '🧙', cls: 'sprite-npc'    }
 };
 

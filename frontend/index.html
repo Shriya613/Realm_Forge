@@ -27,19 +27,20 @@
       <div id="lobby-screen" class="screen glass">
         <h2 class="prompt-title glow">Mission Briefing</h2>
         <p class="subtitle">Join an existing session or start a new simulation?</p>
-        <div class="lobby-options">
-          <div class="lobby-card">
-            <div class="lobby-icon">🌐</div>
-            <h3>Create New World</h3>
-            <p>Generate a fresh reality. You'll receive a session ID to share with your crew.</p>
-            <button id="btn-create-session" class="primary-btn" style="margin-top:14px;">Create Session</button>
+        <div class="lobby-options" style="display:flex; flex-direction:row; gap:20px;">
+          <div class="lobby-card" id="card-solo">
+            <div class="lobby-icon">👤</div>
+            <h3>Play Solo</h3>
+            <p>Start a new private adventure.</p>
+            <button id="btn-solo" class="primary-btn" style="margin-top:14px;">Single Player</button>
           </div>
-          <div class="lobby-card">
-            <div class="lobby-icon">🔗</div>
-            <h3>Join Existing Session</h3>
-            <p>Enter a session ID to warp into an active simulation.</p>
-            <div class="input-group" style="margin-top:12px;">
-              <input type="text" id="join-session-input" placeholder="Paste session ID here..." autocomplete="off">
+          <div class="lobby-card" id="card-coop">
+            <div class="lobby-icon">🌐</div>
+            <h3>Co-op Multiplayer</h3>
+            <p>Generate a world & receive a code to share, or join a friend's simulation.</p>
+            <button id="btn-create-session" class="primary-btn" style="margin-top:14px; margin-bottom: 20px;">Create Session</button>
+            <div class="input-group" style="padding-top:10px; border-top: 1px solid #444;">
+              <input type="text" id="join-session-input" placeholder="Paste session ID..." autocomplete="off">
             </div>
             <button id="btn-join-lobby" class="primary-btn" style="margin-top:10px;">Join Session</button>
           </div>
@@ -134,7 +135,8 @@
           <!-- REGION ENCOUNTER VIEW -->
           <div id="region-encounter" class="hidden">
               <div class="sidebar-column">
-                  <aside id="regions-panel" class="glass-panel">
+                  <aside id="regions-panel" class="glass-panel" style="position:relative;">
+                    <div id="node-timer" class="pulse-ring hidden" style="position:absolute; top:20px; right:20px; color:#ff3333; font-size:1.5em; font-family:'Share Tech Mono', monospace; text-shadow:0 0 10px #ff3333;">10:00</div>
                     <h3 id="current-region-name" class="panel-header glow" style="font-size:1.4em;">NODE</h3>
                     <p id="current-region-desc" class="subtitle sm"></p>
                     <div id="image-loading-spinner" class="spinner-small hidden"></div>
