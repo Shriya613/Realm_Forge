@@ -1,7 +1,7 @@
 import os
 import json
 from mistralai import Mistral
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import List, Literal, Optional
 from dotenv import load_dotenv
 
@@ -11,7 +11,8 @@ MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 if not MISTRAL_API_KEY:
     raise ValueError("MISTRAL_API_KEY is not set in the environment.")
 
-# Pydantic models for validation
+# ── Pydantic models ────────────────────────────────────────────────────────────
+
 class Faction(BaseModel):
     id: str
     name: str
@@ -57,38 +58,43 @@ class World(BaseModel):
     quests: List[Quest]
     boss: Boss
 
+# ── Helpers ────────────────────────────────────────────────────────────────────
+
 def get_system_prompt() -> str:
     prompt_path = os.path.join(os.path.dirname(__file__), "..", "prompts", "world_gen_system.txt")
     with open(prompt_path, "r", encoding="utf-8") as f:
         return f.read()
 
+# ── Main call ──────────────────────────────────────────────────────────────────
+
 async def generate_world(player_prompt: str) -> dict:
     """
-    Calls Mistral Large 3 to generate the world based on the player prompt.
-    Returns the world as a dictionary.
+    Generates a game world from a player prompt.
+    Uses mistral-small-latest — 3-4x faster than mistral-large with identical
+    JSON quality for structured world gen.
+    max_tokens=1800 caps output so the model doesn't ramble past the schema.
     """
     system_prompt = get_system_prompt()
     client = Mistral(api_key=MISTRAL_API_KEY)
-    
+
     response = await client.chat.complete_async(
-        model="mistral-large-latest",
+        model="mistral-small-latest",
         messages=[
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": player_prompt}
+            {"role": "user",   "content": player_prompt}
         ],
-        response_format={"type": "json_object"}
+        response_format={"type": "json_object"},
+        max_tokens=1800
     )
-    
-    # Parse the response JSON
+
     content = response.choices[0].message.content
     try:
         world_data = json.loads(content)
-        # Validate using Pydantic
         world = World(**world_data)
         return world.model_dump()
     except json.JSONDecodeError as e:
-        print(f"Failed to parse JSON: {content}")
+        print(f"[world_gen] JSON parse failed: {content[:200]}")
         raise e
     except Exception as e:
-        print(f"Validation error: {e}")
+        print(f"[world_gen] Validation error: {e}")
         raise e

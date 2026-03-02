@@ -153,7 +153,6 @@ document.getElementById('btn-generate').addEventListener('click', async () => {
         promptScreen.classList.remove('active');
         setTimeout(() => {
             loadingScreen.classList.add('active');
-            loadingStatus.innerText = "The Architect is building reality clusters from the prompt...";
             generateWorld(promptInput);
         }, 400);
     } else {
@@ -161,8 +160,31 @@ document.getElementById('btn-generate').addEventListener('click', async () => {
     }
 });
 
+// Animated loading status messages
+const LOADING_MSGS = [
+    "Parsing reality parameters...",
+    "The Architect is sculpting the world...",
+    "Generating factions and regions...",
+    "Placing nodes on the overworld...",
+    "Seeding quests and boss encounters...",
+    "Calibrating simulation integrity...",
+    "Almost ready — finalising the nodes..."
+];
+
+function startLoadingAnimation() {
+    let i = 0;
+    loadingStatus.innerText = LOADING_MSGS[0];
+    return setInterval(() => {
+        i = (i + 1) % LOADING_MSGS.length;
+        loadingStatus.innerText = LOADING_MSGS[i];
+    }, 1800);
+}
+
 // --- API: Generate World ---
 async function generateWorld(promptString) {
+    const t0 = performance.now();
+    const msgInterval = startLoadingAnimation();
+
     try {
         const response = await fetch('http://127.0.0.1:8000/generate-world', {
             method: 'POST',
@@ -170,17 +192,21 @@ async function generateWorld(promptString) {
             body: JSON.stringify({ prompt: promptString, player_name: playerName, session_id: currentSessionId })
         });
         if (!response.ok) throw new Error("Server Error");
-        
+
         const data = await response.json();
         worldData = data.data;
-        loadingStatus.innerText = "Nodes established. Connecting sensory link...";
-        
-        setTimeout(() => { enterGame(); }, 1500);
+        const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+        clearInterval(msgInterval);
+        loadingStatus.innerText = `✅ World generated in ${elapsed}s — entering simulation...`;
+
+        setTimeout(() => { enterGame(); }, 1000);
     } catch (e) {
+        clearInterval(msgInterval);
         console.error(e);
-        loadingStatus.innerText = "Connection lost. Using localized backup matrix...";
+        loadingStatus.innerText = "⚠️ Connection lost. Check backend and try again.";
     }
 }
+
 
 // --- ENTER DOM GAME ---
 function enterGame() {
