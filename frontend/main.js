@@ -558,23 +558,6 @@ function gameLoop() {
         
         // Broadcast position to co-op peers every frame
         wsSend({ type: 'move', x: playerPos.x, y: playerPos.y });
-        
-        // Move enemies
-        enemies.forEach(en => {
-            en.x += en.dx;
-            en.y += en.dy;
-            if(en.x < 1 || en.x > 99) en.dx *= -1;
-            if(en.y < 1 || en.y > 99) en.dy *= -1;
-            en.el.style.left = `${en.x}%`;
-            en.el.style.top = `${en.y}%`;
-            
-            // Random combat encounter check
-            const dist = Math.hypot(playerPos.x - en.x, playerPos.y - en.y);
-            if (dist < 3) {
-                en.dx *= -1; en.dy *= -1; // Bounce away
-                triggerRandomEncounter();
-            }
-        });
 
         // Region Proximity Detect
         let closestNode = null;
@@ -656,10 +639,22 @@ btnLeaveNode.addEventListener('click', () => {
     dynamicBg.style.backgroundImage = "url('https://images.unsplash.com/photo-1518005020951-eccb494ad742?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80')";
 });
 
-function triggerRandomEncounter() {
-    hudStatus.innerText = "OVERWORLD HOSTILE INTERCEPTS!";
-    hudStatus.style.color = "#ff3333";
-    sendAction("Player was ambushed by a roaming entity in the overworld while traveling.", "map_encounter");
+// --- Trophy & Victory System ---
+function showTrophy(title, desc, isWorldVictory = false) {
+    const overlay = document.getElementById('trophy-overlay');
+    document.getElementById('trophy-title').innerText = title;
+    document.getElementById('trophy-desc').innerText = desc;
+    overlay.classList.remove('hidden');
+
+    const btn = document.getElementById('btn-trophy-continue');
+    btn.onclick = () => {
+        overlay.classList.add('hidden');
+        if (isWorldVictory) {
+            location.reload(); // Reload to start a new game/world
+        } else {
+            btnLeaveNode.click(); // Return to map
+        }
+    };
 }
 
 // --- Dynamic Choice Buttons ---
@@ -680,17 +675,28 @@ function renderChoices(choices, stage) {
             window._conqueredRegions.push(currentRegionId);
             updateHUD(); // refresh nodes counter + check boss unlock
             playSFX('conquered');
+            
             // Destroy enemy sprites for this region
             enemySprites
                 .filter(s => s.regionId === currentRegionId)
                 .forEach(s => { s.celebrate(); setTimeout(() => s.destroy(), 1400); });
-        }
+            
+            // Victory Checks
+            const total = worldData.regions.length;
+            const bossIdx = Math.max(1, total - 1);
+            const numConquered = window._conqueredRegions.length;
 
-        const doneBtn = document.createElement('button');
-        doneBtn.className = 'action-btn';
-        doneBtn.innerText = '← Return to Map';
-        doneBtn.addEventListener('click', () => btnLeaveNode.click());
-        actionButtons.appendChild(doneBtn);
+            if (numConquered >= total) {
+                // Game completely won (boss defeated)
+                showTrophy("🏆 WORLD CONQUERED 🏆", `You have secured ${worldData.world_name} and achieved ultimate victory!`, true);
+            } else if (numConquered === bossIdx) {
+                // Unlocked the boss
+                showTrophy("NODE CONQUERED!", "All sub-regions claimed! The final Boss Node is now unlocked on the map.", false);
+            } else {
+                // Regular node won
+                showTrophy("NODE CONQUERED!", "You have resolved the conflict in this region.", false);
+            }
+        }
         return;
     }
 

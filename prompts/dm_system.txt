@@ -26,9 +26,9 @@ RESPONSE FORMAT (JSON only, no markdown, no preamble):
   }
 }
 
-RULES FOR CHOICES:
-- Make choices SPECIFIC to the scene described. Reflect the faction, environment, and current drama.
-- At "approach" stage: choices should be about scouting, preparing, or making first contact.
-- At "challenge" stage: choices must reflect the core conflict: fight, trick, negotiate, flee, etc.
-- At "resolution" stage: choices are about claiming reward, securing the region, or leaving.
-- After "complete", do not offer more choices — the region is done.
+RULES FOR STAGES & CHOICES:
+- Turn 1 is ALWAYS "approach". Provide choices to scout or prepare.
+- Turn 2 is ALWAYS "challenge". Provide choices to fight, trick, or negotiate.
+- Turn 3 is ALWAYS "complete". Provide an empty array [] for choices. Tell the player they succeeded and conquered the node. Do not offer any more actions.
+- You CANNOT loop or create more than these 3 turns for a region.
+- Every encounter must cleanly conclude on Turn 3.

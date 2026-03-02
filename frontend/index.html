@@ -183,6 +183,14 @@
 
       </div><!-- end #game-body -->
 
+      <!-- TROPHY OVERLAY (Node or World Victory) -->
+      <div id="trophy-overlay" class="hidden glass-panel" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); z-index:300; text-align:center; padding:40px; border:2px solid #ffcc00; border-radius:12px; box-shadow:0 0 40px rgba(255,204,0,0.5); width: 450px; backdrop-filter: blur(10px); background: rgba(0,0,0,0.9);">
+          <div id="trophy-icon" style="font-size: 80px; animation: trophyBounce 2s ease-in-out infinite, trophyGlow 2s ease-in-out infinite;">🏆</div>
+          <h2 id="trophy-title" style="color: #ffcc00; text-shadow: 0 0 10px #ffcc00; margin-top: 20px; font-size: 24px; text-transform: uppercase;">NODE CONQUERED!</h2>
+          <p id="trophy-desc" style="color: #aaa; margin: 15px 0 25px; font-size: 14px; line-height: 1.4;">You have claimed this region for yourself.</p>
+          <button id="btn-trophy-continue" class="primary-btn" style="border-color:#ffcc00; color:#ffcc00;">CONTINUE</button>
+      </div>
+
     </div><!-- end #game-interface -->
 
     <script type="module" src="/main.js"></script>

@@ -526,3 +526,13 @@ h3.panel-header { font-family: 'Audiowide', cursive; color: #00ffcc; margin: 0 0
   from { opacity: 0; transform: scale(0.8) translateY(12px); }
   to   { opacity: 1; transform: scale(1) translateY(0); }
 }
+
+/* ─── Trophy Overlay Animations ─────────────────────────────────────── */
+@keyframes trophyBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-15px); }
+}
+@keyframes trophyGlow {
+  0%, 100% { filter: drop-shadow(0 0 10px rgba(255, 204, 0, 0.5)); }
+  50% { filter: drop-shadow(0 0 30px rgba(255, 204, 0, 1)); }
+}
