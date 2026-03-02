@@ -13,12 +13,40 @@ const loadingStatus = document.getElementById('loading-status');
 const gameInterface = document.getElementById('game-interface');
 
 // HUD & Views
-const hudName = document.getElementById('hud-name');
-const hudXp = document.getElementById('hud-xp');
-const hudHp = document.getElementById('hud-hp');
+const hudName   = document.getElementById('hud-name');
+const hudXp     = document.getElementById('hud-xp');
+const hudHp     = document.getElementById('hud-hp');
 const hudEnergy = document.getElementById('hud-energy');
-const hudWorld = document.getElementById('hud-world');
+const hudWorld  = document.getElementById('hud-world');
 const hudStatus = document.getElementById('hud-status');
+const hudNodes  = document.getElementById('hud-nodes');
+const hudBossStat = document.getElementById('hud-boss-stat');
+
+// ── Central HUD Update ─────────────────────────────────────────────────────
+function updateHUD(stats = {}) {
+    if (stats.xp     !== undefined) hudXp.innerText     = parseInt(stats.xp)     || 0;
+    if (stats.hp     !== undefined) hudHp.innerText     = parseInt(stats.hp)     || 0;
+    if (stats.energy !== undefined) hudEnergy.innerText = parseInt(stats.energy) || 0;
+
+    // Conquered nodes counter + boss unlock
+    if (worldData) {
+        const regions   = worldData.regions || [];
+        const conquered = (window._conqueredRegions || []).length;
+        const total     = regions.length;
+        const bossIdx   = total - 1;          // last region is the boss
+        const bossUnlocked = conquered >= bossIdx && total > 1;
+
+        hudNodes.innerText = `${conquered}/${bossIdx}`;
+        if (bossUnlocked) {
+            hudBossStat.style.display = '';
+            if (conquered < total) {
+                addChatMsg('⚔️ BOSS UNLOCKED — Enter the final node!', 'peer-action');
+            }
+        } else {
+            hudBossStat.style.display = 'none';
+        }
+    }
+}
 
 const overworldMap = document.getElementById('overworld-map');
 const regionEncounter = document.getElementById('region-encounter');
@@ -542,6 +570,13 @@ function renderChoices(choices, stage) {
     actionButtons.appendChild(badge);
 
     if (stage === "complete") {
+        // Track this region as conquered
+        if (currentRegionId && !(window._conqueredRegions || []).includes(currentRegionId)) {
+            window._conqueredRegions = window._conqueredRegions || [];
+            window._conqueredRegions.push(currentRegionId);
+            updateHUD(); // refresh nodes counter + check boss unlock
+        }
+
         const doneBtn = document.createElement('button');
         doneBtn.className = 'action-btn';
         doneBtn.innerText = '← Return to Map';
@@ -627,13 +662,11 @@ async function sendAction(actionStr, bypassRegionId = null) {
             dmText.innerText = dmResponse.narration;
             dmText.style.color = textColor;
             
-            // RPG Metrics
-            hudXp.innerText = data.xp;
-            hudHp.innerText = data.hp;
-            hudEnergy.innerText = data.energy;
+            // Update HUD (single source of truth)
+            updateHUD({ xp: data.xp, hp: data.hp, energy: data.energy });
             
             // Screen Shake for heavy damage
-            if (dmResponse.state_changes.hp_delta < -10) {
+            if (parseInt(dmResponse.state_changes?.hp_delta ?? 0) < -10) {
                  dynamicBg.style.transform = "translateX(10px)";
                  setTimeout(() => dynamicBg.style.transform = "translateX(-10px)", 50);
                  setTimeout(() => dynamicBg.style.transform = "translateX(0)", 100);
