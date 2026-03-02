@@ -254,14 +254,9 @@ function enterGame() {
         // Init progress bar from world data
         updateHUD();
 
-        // Load SFX library in background (non-blocking)
-        fetch('http://127.0.0.1:8000/sfx-library')
-            .then(r => r.json())
-            .then(data => {
-                sfxLibrary = data.sfx || {};
-                console.log('[audio] SFX loaded:', Object.keys(sfxLibrary).filter(k => sfxLibrary[k]).length, 'sounds');
-            })
-            .catch(e => console.warn('[audio] SFX load failed:', e));
+        // SFX library disabled to conserve ElevenLabs credits.
+        // Re-enable when on a paid plan: fetch('http://127.0.0.1:8000/sfx-library')...
+        // sfxLibrary stays empty {} — playSFX() silently skips missing sounds.
         
         setupMapEngine();
     }, 500);
