@@ -1,7 +1,6 @@
 /**
  * sprites.js — CSS-animated map sprites
- * Drop-in overlay on top of the overworld map.
- * No assets needed — pure emoji + CSS animations.
+ * Drop-in overlay on top of the overworld maps
  */
 
 const SPRITE_TYPES = {
