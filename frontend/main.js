@@ -453,8 +453,13 @@ function enterGame() {
             if (hudClass) { hudClass.innerText = cls.name; hudClass.style.color = cls.color; }
         }
 
-        // Reset telemetry for new run
+        // Reset telemetry + score display for new run
         telemetryReset();
+        const scoreEl = document.getElementById('hud-score');
+        if (scoreEl) scoreEl.innerText = '0';
+        const statEl = document.getElementById('hud-telemetry-stat');
+        if (statEl) statEl.style.display = 'none';
+
 
         // Init quest tracker from worldData quests
         if (worldData?.quests) {
@@ -739,67 +744,67 @@ function setupMapEngine() {
     enemies = [];
 
     const totalNodes = worldData.regions.length;
-    const step = totalNodes > 1 ? 80 / (totalNodes - 1) : 40;
     const conqueredIds = window._conqueredRegions || [];
 
-    // Compute which nodes are available (difficulty gating: easy -> medium -> hard)
+    // ── Force horizontal layout: all nodes at y=50%, evenly spaced ──────────
+    worldData.regions.forEach((region, index) => {
+        const xStep = totalNodes > 1 ? 84 / (totalNodes - 1) : 0;
+        region.renderX = 8 + index * xStep;
+        region.renderY = 50; // always horizontal
+    });
+
+    // Compute which nodes are now unlocked (sequential order)
     function getAvailableIds(regions, conquered) {
-        const order = ['easy', 'medium', 'hard'];
-        for (const diff of order) {
-            const atLevel = regions.filter(r => r.difficulty === diff);
-            const doneAtLevel = atLevel.filter(r => conquered.includes(r.id));
-            if (doneAtLevel.length < atLevel.length) return atLevel.map(r => r.id);
-        }
-        return [];
+        // Unlock next region in sequence after each conquest
+        const ids = new Set();
+        regions.forEach((r, i) => {
+            if (i === 0) { ids.add(r.id); return; } // first always available
+            const prev = regions[i - 1];
+            if (conquered.includes(prev.id)) ids.add(r.id);
+        });
+        return [...ids];
     }
     const availableIds = getAvailableIds(worldData.regions, conqueredIds);
 
-    // SVG connection lines between nodes
+    // SVG connection lines between consecutive nodes
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.id = 'map-connections';
     overworldMap.appendChild(svg);
 
-    const PERSONALITY_ICON = { aggressive: 'A', cunning: 'C', defensive: 'D', diplomatic: 'P' };
     const DIFF_COLOR = { easy: '#00ffcc', medium: '#ffcc00', hard: '#ff4444' };
 
-    // Create Realm Nodes — use Mistral position when available (v2 layout)
+    // Create Realm Nodes
     worldData.regions.forEach((region, index) => {
-        const pos = region.position || {};
-        const mappedX = (typeof pos.x === 'number' ? pos.x : 10 + (index * step));
-        const mappedY = (typeof pos.y === 'number' ? pos.y : 50);
-        region.renderX = mappedX;
-        region.renderY = mappedY;
+        const mappedX = region.renderX;
+        const mappedY = region.renderY;
 
         const isConquered = conqueredIds.includes(region.id);
-        const isAvailable = availableIds.includes(region.id);
+        const isAvailable = availableIds.includes(region.id) && !isConquered;
         const isLocked = !isConquered && !isAvailable;
         const diff = region.difficulty || 'easy';
-        // Determine boss node: last hard region in the list
-        const isBossNode = region.difficulty === 'hard' && worldData.regions.indexOf(region) === worldData.regions.length - 1;
-        const faction = (worldData.factions || []).find(f => f.id === region.faction_id);
-        const icon = PERSONALITY_ICON[faction?.personality] || '◆';
-        const color = DIFF_COLOR[diff] || '#00ffcc'; 
+        const isBossNode = index === worldData.regions.length - 1;
+        const color = DIFF_COLOR[diff] || '#00ffcc';
 
         const node = document.createElement('div');
         node.className = `overworld-node ${isConquered ? 'conquered' : isLocked ? 'locked' : 'diff-' + diff}${isBossNode && !isConquered ? ' boss-node' : ''}`;
         node.style.left = `${mappedX}%`;
-        node.style.top = `${mappedY}%`;
+        node.style.top  = `${mappedY}%`;
         node.dataset.regionId = region.id;
 
         // Pulse ring for available
-        if (isAvailable && !isConquered) {
+        if (isAvailable) {
             const ring = document.createElement('div');
             ring.className = `node-pulse-ring ${isBossNode ? 'ring-boss' : 'ring-' + diff}`;
             node.appendChild(ring);
         }
 
-        // Icon element (skull for boss, personality letter, or check for conquered)
+        // Icon — no emoji on nodes, just a symbol
         const iconEl = document.createElement('div');
-        iconEl.style.cssText = 'position:relative; z-index:2; font-size:20px; pointer-events:none;';
-        iconEl.innerText = isConquered ? '●' : (isLocked ? 'L' : (isBossNode ? '💀' : icon));
+        iconEl.style.cssText = 'position:relative; z-index:2; font-size:20px; pointer-events:none; font-family: Share Tech Mono, monospace; color:#fff;';
+        iconEl.innerText = isConquered ? '✔' : (isLocked ? '🔒' : (isBossNode ? '★' : '◆'));
         node.appendChild(iconEl);
 
-        // Difficulty badge (not on boss)
+        // Difficulty badge (not on boss or conquered)
         if (!isConquered && !isLocked && !isBossNode) {
             const badge = document.createElement('div');
             badge.className = `node-diff-badge diff-badge-${diff}`;
@@ -863,29 +868,26 @@ function setupMapEngine() {
         region.domNode = node;
     });
 
-    // Draw SVG connection lines
+    // Draw SVG connection lines between consecutive nodes only
     worldData.regions.forEach((r, i) => {
-        worldData.regions.slice(i + 1).forEach(r2 => {
-            const bothConq = (window._conqueredRegions || []).includes(r.id) && (window._conqueredRegions || []).includes(r2.id);
-            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            line.setAttribute('x1', `${r.renderX}%`);
-            line.setAttribute('y1', `${r.renderY}%`);
-            line.setAttribute('x2', `${r2.renderX}%`);
-            line.setAttribute('y2', `${r2.renderY}%`);
-            line.setAttribute('stroke', bothConq ? '#00ff88' : '#00ffcc');
-            line.setAttribute('stroke-width', '1');
-            line.setAttribute('stroke-opacity', bothConq ? '0.18' : '0.06');
-            line.setAttribute('stroke-dasharray', '5,10');
-            svg.appendChild(line);
-        });
+        if (i === 0) return;
+        const r2 = worldData.regions[i - 1];
+        const isActive = conqueredIds.includes(r2.id);
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', `${r2.renderX}%`);
+        line.setAttribute('y1', `${r2.renderY}%`);
+        line.setAttribute('x2', `${r.renderX}%`);
+        line.setAttribute('y2', `${r.renderY}%`);
+        line.setAttribute('stroke', isActive ? '#00ff88' : '#00ffcc');
+        line.setAttribute('stroke-width', '1.5');
+        line.setAttribute('stroke-opacity', isActive ? '0.5' : '0.15');
+        line.setAttribute('stroke-dasharray', '6,8');
+        svg.appendChild(line);
     });
 
-    // Spawn CSS animated enemy sprites near each region node
+    // No roaming enemy sprites on overworld — they clutter the nodes
     enemySprites.forEach(s => s.destroy());
     enemySprites = [];
-    const mapRect = overworldMap.getBoundingClientRect();
-    const bounds = { left: 0, top: 0, right: mapRect.width, bottom: mapRect.height, width: mapRect.width, height: mapRect.height };
-    enemySprites = spawnRegionEnemies(worldData.regions, bounds);
 
     if (worldData.regions.length > 0) {
         playerPos.x = worldData.regions[0].renderX;
@@ -1254,7 +1256,7 @@ function renderChoices(choices, stage) {
                     r.domNode.className = 'overworld-node conquered';
                     r.domNode.querySelector('.node-pulse-ring')?.remove();
                     const iconEl = r.domNode.querySelector('div');
-                    if (iconEl) iconEl.innerText = '●';
+                    if (iconEl) iconEl.innerText = '✔';
                 }
             });
 
@@ -1270,6 +1272,8 @@ function renderChoices(choices, stage) {
                 showTrophy('🏆 WORLD CONQUERED 🏆', `You have secured ${worldData.world_name} and achieved ultimate victory!`, true);
             } else {
                 showTrophy('NODE CONQUERED!', `Region secured. ${total - numConquered} node(s) remaining.`, false);
+                // Rebuild map so next sequential node gets unlocked
+                setTimeout(() => setupMapEngine(), 1600);
             }
         }
         return;
