@@ -1,12 +1,13 @@
 /**
  * sprites.js — CSS-animated map sprites
- * Drop-in overlay on top of the overworld maps
+ * Drop-in overlay on top of the overworld map
  */
 
 const SPRITE_TYPES = {
-    player: { label: 'P', cls: 'sprite-player' },
-    enemy:  { label: '!', cls: 'sprite-enemy'  },
-    npc:    { label: 'N', cls: 'sprite-npc'    }
+    player: { label: '🧙', cls: 'sprite-player' },
+    enemy:  { label: '👹', cls: 'sprite-enemy'  },
+    boss:   { label: '💀', cls: 'sprite-enemy'  },
+    npc:    { label: '🧝', cls: 'sprite-npc'    }
 };
 
 class MapSprite {
@@ -80,20 +81,23 @@ class MapSprite {
 
 /**
  * Spawn enemy sprites on the overworld near each region node.
- * @param {Array} regions - worldData.regions
- * @param {DOMRect|Object} bounds - {left, top, right, bottom, width, height}
- * @returns {MapSprite[]}
+ * Boss region gets 💀 skull enemies, hard regions get 2 👹, easy gets 1.
  */
 function spawnRegionEnemies(regions, bounds) {
     const sprites = [];
+    const lastRegionId = regions[regions.length - 1]?.id;
+
     regions.forEach(region => {
         const cx = (region.position.x / 100) * bounds.width  + bounds.left;
         const cy = (region.position.y / 100) * bounds.height + bounds.top;
-        const count = region.difficulty === 'hard' ? 2 : 1;
+        const isBoss = region.id === lastRegionId;
+        const count = isBoss ? 2 : (region.difficulty === 'hard' ? 2 : 1);
+        const spriteType = isBoss ? 'boss' : 'enemy';
+
         for (let i = 0; i < count; i++) {
             const ox = cx + (Math.random() - 0.5) * 55;
             const oy = cy + (Math.random() - 0.5) * 55;
-            const s = new MapSprite('enemy', ox, oy, '', region.id);
+            const s = new MapSprite(spriteType, ox, oy, '', region.id);
             s.startRoaming(bounds, cx, cy, 40);
             sprites.push(s);
         }
