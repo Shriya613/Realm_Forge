@@ -32,6 +32,8 @@ class Region(BaseModel):
     difficulty: Literal["easy", "medium", "hard"]
     strategic_value: str
     position: Position
+    chapter_intro: Optional[str] = None   # Shown when player enters this region
+    chapter_outro: Optional[str] = None   # Shown on conquest — bridges to next chapter
 
 class Quest(BaseModel):
     id: str
@@ -53,6 +55,7 @@ class World(BaseModel):
     world_name: str
     lore: str
     theme: str
+    story_arc: Optional[str] = None        # One-sentence overarching narrative
     factions: List[Faction]
     regions: List[Region]
     quests: List[Quest]
