@@ -8,7 +8,10 @@ import json
 
 from backend.world_gen import generate_world
 from backend.game_logic import process_action
-from backend.state_store import create_session, get_session, update_session
+from backend.state_store import (
+    create_session, get_session, update_session,
+    increment_region_turn, reset_region_turn, complete_quest_for_region
+)
 from backend.narration import generate_narration
 from backend.hf_image import generate_region_image
 from backend.ws_manager import manager
@@ -105,11 +108,15 @@ async def player_action(request: ActionRequest):
         session = get_session(request.session_id)
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
+
+        # Increment turn counter for this region
+        turn_number = increment_region_turn(request.session_id, request.region_id)
+        logger.info(f"[action] region={request.region_id} turn={turn_number}")
         
         # Inject context for what region this action is aimed at
         contextual_action = f"Target Region ID: {request.region_id}. Action text: {request.action}"
         
-        dm_response = await process_action(contextual_action, session, request.region_id)
+        dm_response = await process_action(contextual_action, session, request.region_id, turn_number)
         
         # Update session
         session['log'].append({"user": request.action, "dm": dm_response['narration']})
@@ -129,7 +136,15 @@ async def player_action(request: ActionRequest):
             player['inventory'].extend(state_changes['loot_dropped'])
             
         if state_changes['region_status'] == "conquered":
-             session['conquered_regions'].append(request.region_id)
+            if request.region_id not in session.get('conquered_regions', []):
+                session['conquered_regions'].append(request.region_id)
+            # Complete any quests tied to this region + award bonus XP
+            complete_quest_for_region(request.session_id, request.region_id)
+            quest_bonus = 25  # bonus XP for quest completion
+            player['xp'] += quest_bonus
+            logger.info(f"[quests] Region {request.region_id} conquered — quest complete, +{quest_bonus} XP")
+            # Reset turn counter for if player revisits
+            reset_region_turn(request.session_id, request.region_id)
              
         return {
             "status": "success", 
@@ -138,13 +153,24 @@ async def player_action(request: ActionRequest):
             "hp": player['hp'],
             "energy": player['energy'],
             "inventory": player['inventory'],
+            "active_quests": session.get('active_quests', []),
             "stage": dm_response.get("stage", "approach"),
             "choices": dm_response.get("choices", []),
-            "defeated": defeated
+            "defeated": defeated,
+            "turn_number": turn_number
         }
     except Exception as e:
         logger.error(f"Error processing action: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/quests/{session_id}", summary="Get quest state for a session")
+async def get_quests(session_id: str):
+    """Return the active_quests list for a session so the frontend can render a tracker."""
+    session = get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"status": "success", "quests": session.get("active_quests", [])}
 
 
 class NarrationRequest(BaseModel):
