@@ -2,6 +2,7 @@
 
 An AI-powered turn-based adventure game where every world, story, and encounter is generated live by [Mistral AI](https://mistral.ai). No two playthroughs are the same.
 Built for Mistral AI hackathon 2026
+
 ---
 
 ## What is it?
@@ -9,6 +10,7 @@ Built for Mistral AI hackathon 2026
 You enter a world prompt — _"a cyberpunk city in ruins"_ or _"an ancient elvish forest at war"_ — and Mistral generates a full world: factions, regions, lore, and a 7-turn story arc for every node you enter.
 
 Each encounter plays out as a narrative RPG beat:
+
 - The Architect (AI dungeon master) narrates the scene
 - You pick from 3 context-aware choices (hover for hints)
 - Your HP rises and falls based on how well you play
@@ -17,6 +19,7 @@ Each encounter plays out as a narrative RPG beat:
 The map connects nodes across difficulty tiers (Easy → Medium → Hard). Clear a full world to claim the trophy.
 
 **AI stack:**
+
 - **Mistral** (Ministral 8B) — world generation, dungeon master narration
 - **ElevenLabs** — voice narration
 - **Gemini** — faction portrait generation
@@ -36,18 +39,21 @@ The map connects nodes across difficulty tiers (Easy → Medium → Hard). Clear
 ## Installation
 
 **1. Clone the repo**
+
 ```bash
 git clone <repo-url>
 cd Mistral_hacked
 ```
 
 **2. Set up API keys**
+
 ```bash
 cp .env.example .env
 # Open .env and fill in your API keys
 ```
 
 **3. Make the launcher executable**
+
 ```bash
 chmod +x start.sh
 ```
@@ -56,22 +62,44 @@ That's it. The launcher handles all Python and Node dependencies automatically.
 
 ---
 
-## Running
+## Running the Game
 
-**Terminal 1 — Backend**
+You need **two terminals** open — one for the backend, one for the frontend.
+
+### ▶️ Start
+
+**Terminal 1 — Backend (FastAPI)**
+
 ```bash
-python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+cd Mistral_hacked
+source .venv/bin/activate          # activate virtual environment
+uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-**Terminal 2 — Frontend**
+**Terminal 2 — Frontend (Vite dev server)**
+
 ```bash
-cd frontend
-npm install
-npm run build
-npx vite preview --port 5174
+cd Mistral_hacked/frontend
+npm install                         # only needed first time
+npm run dev
 ```
 
 Open **http://localhost:5174** in your browser to play.
+
+---
+
+### ⏹️ Stop
+
+- **Backend:** Press `Ctrl + C` in Terminal 1
+- **Frontend:** Press `Ctrl + C` in Terminal 2
+
+---
+
+### 🔁 Quick Restart (after code changes)
+
+The backend runs with `--reload` so Python changes apply automatically.  
+For frontend changes, Vite hot-reloads instantly — no restart needed.  
+If something looks stale, do a hard refresh: `Cmd + Shift + R` (Mac) / `Ctrl + Shift + R` (Windows).
 
 ---
 
@@ -105,9 +133,9 @@ Mistral_hacked/
 
 ## API keys
 
-| Key | Where to get it |
-|---|---|
-| `MISTRAL_API_KEY` | https://console.mistral.ai |
-| `ELEVENLABS_API_KEY` | https://elevenlabs.io |
-| `HF_TOKEN` | https://huggingface.co/settings/tokens |
-| `GEMINI_API_KEY` | https://aistudio.google.com/app/apikey |
+| Key                  | Where to get it                        |
+| -------------------- | -------------------------------------- |
+| `MISTRAL_API_KEY`    | https://console.mistral.ai             |
+| `ELEVENLABS_API_KEY` | https://elevenlabs.io                  |
+| `HF_TOKEN`           | https://huggingface.co/settings/tokens |
+| `GEMINI_API_KEY`     | https://aistudio.google.com/app/apikey |
