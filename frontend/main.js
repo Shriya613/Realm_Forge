@@ -13,6 +13,54 @@ let nodeTimeRemaining = 600;
 let failedNodes = {};  // { regionId: failCount } for 3-strike world reset
 let showDefeatOverlay = false;
 let defeatRegionName = '';
+let bgmMuted = false;  // BGM mute state
+
+// ── Character class state ────────────────────────────────────────────────
+const CLASSES = {
+    knight:  { name:'Knight',  icon:'⚔️',  hp:150, energy:35,  color:'#00ff88', perk:'armor'   },
+    rogue:   { name:'Rogue',   icon:'🗡️',  hp:90,  energy:70,  color:'#ffcc00', perk:'cunning' },
+    mage:    { name:'Mage',    icon:'🔮',  hp:70,  energy:90,  color:'#8833ff', perk:'scholar' },
+    paladin: { name:'Paladin', icon:'✝️',  hp:120, energy:50,  color:'#ffcc00', perk:'paladin' },
+};
+let selectedClass = null; // key into CLASSES
+
+// ── Telemetry tracker ─────────────────────────────────────────────────
+const TELEMETRY = {
+    actionsTotal: 0,
+    successes: 0,
+    failures: 0,
+    partials: 0,
+    totalHpLost: 0,
+    lowHpTurns: 0,  // turns spent below 30% HP
+    nodesConquered: 0,
+    turnsAttempted: 0,
+};
+function telemetryReset() {
+    Object.assign(TELEMETRY, { actionsTotal:0, successes:0, failures:0, partials:0,
+        totalHpLost:0, lowHpTurns:0, nodesConquered:0, turnsAttempted:0 });
+}
+function telemetryRecord(outcome, hpBefore, hpAfter) {
+    TELEMETRY.actionsTotal++;
+    TELEMETRY.turnsAttempted++;
+    if (outcome === 'success')      TELEMETRY.successes++;
+    else if (outcome === 'failure') TELEMETRY.failures++;
+    else                            TELEMETRY.partials++;
+    const lost = Math.max(0, hpBefore - hpAfter);
+    TELEMETRY.totalHpLost += lost;
+    if (hpAfter < 30) TELEMETRY.lowHpTurns++;
+    const score = TELEMETRY.successes * 10 + TELEMETRY.partials * 4 - TELEMETRY.failures * 6;
+    const el = document.getElementById('hud-score');
+    if (el) el.innerText = Math.max(0, score);
+    const stat = document.getElementById('hud-telemetry-stat');
+    if (stat) stat.style.display = 'flex';
+}
+function telemetrySummary() {
+    const acc = TELEMETRY.actionsTotal > 0
+        ? Math.round((TELEMETRY.successes / TELEMETRY.actionsTotal) * 100) : 0;
+    return `accuracy:${acc}% (${TELEMETRY.successes}W/${TELEMETRY.failures}L), ` +
+           `totalHpLost:${TELEMETRY.totalHpLost}, lowHpTurns:${TELEMETRY.lowHpTurns}, ` +
+           `nodesConquered:${TELEMETRY.nodesConquered}`;
+}
 
 // DOM Elements
 const uiLayer = document.getElementById('ui-layer');
@@ -51,6 +99,17 @@ function updateHUD(stats = {}) {
             } else {
                 hpFill.style.background = '#00ff88';
                 hpText.style.color = '#00ff88';
+            }
+        }
+        // ── Heartbeat ──────────────────────────────────────────
+        const hbOverlay = document.getElementById('heartbeat-overlay');
+        if (hbOverlay) {
+            if (parseInt(stats.hp) < 30) {
+                hbOverlay.classList.add('critical');
+                startHeartbeat();
+            } else {
+                hbOverlay.classList.remove('critical');
+                stopHeartbeat();
             }
         }
     }
@@ -136,6 +195,44 @@ document.getElementById('btn-next').addEventListener('click', () => {
     }
 });
 
+// ── Character Class Select ────────────────────────────────────────────
+const classScreen = document.getElementById('class-screen');
+const btnConfirmClass = document.getElementById('btn-confirm-class');
+
+document.querySelectorAll('.class-card').forEach(card => {
+    card.addEventListener('click', () => {
+        document.querySelectorAll('.class-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        selectedClass = card.dataset.class;
+        if (btnConfirmClass) {
+            btnConfirmClass.style.opacity = '1';
+            btnConfirmClass.style.pointerEvents = 'auto';
+            const cls = CLASSES[selectedClass];
+            btnConfirmClass.textContent = `Play as ${cls.name} ${cls.icon}`;
+        }
+    });
+});
+
+if (btnConfirmClass) {
+    btnConfirmClass.addEventListener('click', () => {
+        if (!selectedClass) return;
+        const cls = CLASSES[selectedClass];
+        // Update HUD class badge
+        const hudClass = document.getElementById('hud-class');
+        if (hudClass) { hudClass.innerText = cls.name; hudClass.style.color = cls.color; }
+        // Set initial stats from class
+        window._playerStats = { xp:0, hp:cls.hp, energy:cls.energy,
+            maxHp:cls.hp, maxEnergy:cls.energy };
+        classScreen.classList.remove('active');
+        setTimeout(() => rulesScreen.classList.add('active'), 400);
+    });
+}
+
+function goToClassScreen() {
+    lobbyScreen.classList.remove('active');
+    setTimeout(() => classScreen.classList.add('active'), 400);
+}
+
 // Lobby: Single Player
 const btnSolo = document.getElementById('btn-solo');
 if (btnSolo) {
@@ -143,23 +240,18 @@ if (btnSolo) {
         isMultiplayer = false;
         currentSessionId = "solo_" + Math.floor(Math.random() * 10000);
         document.getElementById('mp-session-id').innerText = currentSessionId;
-        
-        // Hide multiplayer UI
         const chatSidebar = document.getElementById('chat-sidebar');
         if (chatSidebar) chatSidebar.style.display = 'none';
         const mpBadge = document.querySelector('.mp-badge');
         if (mpBadge) mpBadge.style.display = 'none';
-        
-        lobbyScreen.classList.remove('active');
-        setTimeout(() => rulesScreen.classList.add('active'), 400);
+        goToClassScreen();
     });
 }
 
 // Lobby: Create new session
 document.getElementById('btn-create-session').addEventListener('click', () => {
     isMultiplayer = true;
-    lobbyScreen.classList.remove('active');
-    setTimeout(() => rulesScreen.classList.add('active'), 400);
+    goToClassScreen();
 });
 
 // Lobby: Join existing session
@@ -270,17 +362,68 @@ async function generateWorld(promptString) {
 
 
 // --- ENTER DOM GAME ---
+// ── Dynamic World Theme ───────────────────────────────────────────────────
+function applyWorldTheme(prompt = '', worldName = '') {
+    const text = (prompt + ' ' + worldName).toLowerCase();
+    let theme = ''; // default cyberpunk teal
+
+    if (/dragon|magic|wizard|elf|dwarf|kingdom|medieval|castle|quest|sword|fantasy/i.test(text)) {
+        theme = 'theme-fantasy';
+    } else if (/steam|gear|clock|brass|iron|inventor|victorian|coal|machine|industrious/i.test(text)) {
+        theme = 'theme-steampunk';
+    } else if (/horror|blood|undead|zombie|vampire|dark|cursed|haunted|demon|cult/i.test(text)) {
+        theme = 'theme-horror';
+    } else if (/forest|nature|jungle|tree|grove|druid|plant|wild|garden|ocean|water/i.test(text)) {
+        theme = 'theme-nature';
+    } else if (/space|galaxy|planet|star|cosmos|alien|void|nebula|orbit/i.test(text)) {
+        theme = 'theme-space';
+    }
+
+    // Remove all themes, add the new one
+    document.body.classList.remove(
+        'theme-fantasy','theme-steampunk','theme-horror','theme-nature','theme-space'
+    );
+    if (theme) document.body.classList.add(theme);
+
+    // Also update dynamic background gradient to match
+    const bg = document.getElementById('dynamic-bg');
+    if (bg) {
+        const gradients = {
+            'theme-fantasy':   'radial-gradient(ellipse at 35% 45%, #1a0e2e 0%, #0d0818 65%)',
+            'theme-steampunk': 'radial-gradient(ellipse at 35% 45%, #1a0f00 0%, #0d0800 65%)',
+            'theme-horror':    'radial-gradient(ellipse at 35% 45%, #120000 0%, #080000 65%)',
+            'theme-nature':    'radial-gradient(ellipse at 35% 45%, #041208 0%, #020a04 65%)',
+            'theme-space':     'radial-gradient(ellipse at 35% 45%, #000818 0%, #00040f 65%)',
+        };
+        bg.style.background = gradients[theme] || 'radial-gradient(ellipse at 35% 45%, #0a1828 0%, #060810 65%)';
+    }
+}
+
 function enterGame() {
     uiLayer.classList.remove('active');
     
     const bgm = document.getElementById('bg-music');
     if (bgm) { bgm.volume = 0.3; bgm.play().catch(e => console.log("Audio play blocked", e)); }
     
+    // Apply world theme from prompt
+    applyWorldTheme(worldData?.prompt || '', worldData?.world_name || '');
+
     setTimeout(() => {
         uiLayer.classList.add('hidden');
         gameInterface.classList.remove('hidden');
-        hudWorld.innerText = worldData.world_name.toUpperCase();
+
+        // Update world name in new centered HUD
+        const hudWorldEl = document.getElementById('hud-world');
+        if (hudWorldEl) hudWorldEl.innerText = (worldData.world_name || '').toUpperCase();
         
+        // Update player avatar emoji based on class
+        const avatar = document.getElementById('player-avatar');
+        if (avatar && selectedClass) {
+            const cls = CLASSES[selectedClass];
+            avatar.innerText = cls.icon;
+            avatar.title = cls.name;
+        }
+
         // Show session ID + initialize WebSocket
         document.getElementById('mp-session-id').innerText = currentSessionId;
         initWebSocket(currentSessionId);
@@ -288,7 +431,6 @@ function enterGame() {
         // Init Voxtral push-to-talk — voice commands feed into sendAction
         if (!window._ptt) {
             window._ptt = new PushToTalk((transcribedText) => {
-                // Transcribed voice command ➜ send as action (same as clicking a button)
                 if (transcribedText && transcribedText.length > 1) {
                     sendAction(transcribedText);
                 }
@@ -297,13 +439,65 @@ function enterGame() {
 
         // Init progress bar from world data
         updateHUD();
-        window._playerStats = { xp: 0, hp: 100, maxHp: 100, energy: 50, maxEnergy: 50 };
+
+        // Apply class stats (or fallback to default)
+        const cls = selectedClass ? CLASSES[selectedClass] : null;
+        window._playerStats = cls
+            ? { xp:0, hp:cls.hp, energy:cls.energy, maxHp:cls.hp, maxEnergy:cls.energy }
+            : { xp:0, hp:100, maxHp:100, energy:50, maxEnergy:50 };
+        updateHUD({ hp: window._playerStats.hp, energy: window._playerStats.energy });
+
+        // Sync class HUD badge (in case it wasn't set yet)
+        if (cls) {
+            const hudClass = document.getElementById('hud-class');
+            if (hudClass) { hudClass.innerText = cls.name; hudClass.style.color = cls.color; }
+        }
+
+        // Reset telemetry for new run
+        telemetryReset();
+
+        // Init quest tracker from worldData quests
+        if (worldData?.quests) {
+            const initQuests = worldData.quests.map(q => ({
+                id: q.id, title: q.title, region_id: q.region_id, status: 'active'
+            }));
+            renderQuestTracker(initQuests);
+        }
+
 
         // SFX library disabled to conserve ElevenLabs credits.
         // Re-enable when on a paid plan: fetch('http://127.0.0.1:8000/sfx-library')...
         // sfxLibrary stays empty {} — playSFX() silently skips missing sounds.
         
-        setupMapEngine();
+    setupMapEngine();
+        startMinimap();
+
+        // ── Inventory + Quest panel collapse toggles ──────────────────────
+        document.getElementById('inventory-header').addEventListener('click', () => {
+            const panel = document.getElementById('inventory-panel');
+            const tog = document.getElementById('inventory-toggle');
+            panel.classList.toggle('collapsed');
+            tog.innerText = panel.classList.contains('collapsed') ? '▾' : '▴';
+        });
+        document.getElementById('quest-tracker-header').addEventListener('click', () => {
+            const panel = document.getElementById('quest-tracker');
+            const tog = document.getElementById('quest-tracker-toggle');
+            panel.classList.toggle('collapsed');
+            tog.innerText = panel.classList.contains('collapsed') ? '▾' : '▴';
+        });
+
+        // ── BGM Mute button ───────────────────────────────────────────────
+        const btnBgm = document.getElementById('btn-bgm-toggle');
+        if (btnBgm) {
+            btnBgm.addEventListener('click', () => {
+                const bgm = document.getElementById('bg-music');
+                bgmMuted = !bgmMuted;
+                if (bgm) { bgm.muted = bgmMuted; }
+                btnBgm.textContent = bgmMuted ? '🔇 BGM' : '🎵 BGM';
+                btnBgm.classList.toggle('hud-btn-active', !bgmMuted);
+                btnBgm.classList.toggle('muted', bgmMuted);
+            });
+        }
     }, 500);
 }
 
@@ -409,18 +603,13 @@ if (btnVoiceToggle) {
     btnVoiceToggle.addEventListener('click', () => {
         voiceEnabled = !voiceEnabled;
         if (voiceEnabled) {
-            btnVoiceToggle.textContent = '🔊 VOICE: ON';
-            btnVoiceToggle.style.color = '#00ffcc';
-            btnVoiceToggle.style.borderColor = '#00ffcc';
-            btnVoiceToggle.style.background = 'rgba(0,255,204,0.1)';
-            btnVoiceToggle.style.textShadow = '0 0 6px #00ffcc';
+            btnVoiceToggle.textContent = '🔊 VOICE';
+            btnVoiceToggle.classList.add('hud-btn-active');
+            btnVoiceToggle.classList.remove('muted');
             addChatMsg('🔊 Voice narration ON — ElevenLabs credits will be used.', 'system');
         } else {
-            btnVoiceToggle.textContent = '🔇 VOICE: OFF';
-            btnVoiceToggle.style.color = '#666';
-            btnVoiceToggle.style.borderColor = '#444';
-            btnVoiceToggle.style.background = 'rgba(255,255,255,0.05)';
-            btnVoiceToggle.style.textShadow = 'none';
+            btnVoiceToggle.textContent = '🔇 VOICE';
+            btnVoiceToggle.classList.remove('hud-btn-active');
             addChatMsg('🔇 Voice narration OFF — credits saved.', 'system');
         }
     });
@@ -585,12 +774,14 @@ function setupMapEngine() {
         const isAvailable = availableIds.includes(region.id);
         const isLocked = !isConquered && !isAvailable;
         const diff = region.difficulty || 'easy';
+        // Determine boss node: last hard region in the list
+        const isBossNode = region.difficulty === 'hard' && worldData.regions.indexOf(region) === worldData.regions.length - 1;
         const faction = (worldData.factions || []).find(f => f.id === region.faction_id);
         const icon = PERSONALITY_ICON[faction?.personality] || '◆';
-        const color = DIFF_COLOR[diff] || '#00ffcc';
+        const color = DIFF_COLOR[diff] || '#00ffcc'; 
 
         const node = document.createElement('div');
-        node.className = `overworld-node ${isConquered ? 'conquered' : isLocked ? 'locked' : 'diff-' + diff}`;
+        node.className = `overworld-node ${isConquered ? 'conquered' : isLocked ? 'locked' : 'diff-' + diff}${isBossNode && !isConquered ? ' boss-node' : ''}`;
         node.style.left = `${mappedX}%`;
         node.style.top = `${mappedY}%`;
         node.dataset.regionId = region.id;
@@ -598,18 +789,18 @@ function setupMapEngine() {
         // Pulse ring for available
         if (isAvailable && !isConquered) {
             const ring = document.createElement('div');
-            ring.className = `node-pulse-ring ring-${diff}`;
+            ring.className = `node-pulse-ring ${isBossNode ? 'ring-boss' : 'ring-' + diff}`;
             node.appendChild(ring);
         }
 
-        // Icon / check
+        // Icon element (skull for boss, personality letter, or check for conquered)
         const iconEl = document.createElement('div');
         iconEl.style.cssText = 'position:relative; z-index:2; font-size:20px; pointer-events:none;';
-        iconEl.innerText = isConquered ? '●' : (isLocked ? 'L' : icon);
+        iconEl.innerText = isConquered ? '●' : (isLocked ? 'L' : (isBossNode ? '💀' : icon));
         node.appendChild(iconEl);
 
-        // Difficulty badge
-        if (!isConquered && !isLocked) {
+        // Difficulty badge (not on boss)
+        if (!isConquered && !isLocked && !isBossNode) {
             const badge = document.createElement('div');
             badge.className = `node-diff-badge diff-badge-${diff}`;
             badge.innerText = diff[0].toUpperCase();
@@ -743,6 +934,43 @@ function gameLoop() {
         } else {
             hudStatus.innerText = "ONLINE";
             hudStatus.style.color = "#00ff00";
+        }
+    }
+    
+    // ── Enemy intercept check ──────────────────────────────────────────────
+    if (!insideNode && enemySprites.length > 0 && worldData) {
+        const mapRect = overworldMap.getBoundingClientRect();
+        const px = (playerPos.x / 100) * mapRect.width;
+        const py = (playerPos.y / 100) * mapRect.height;
+
+        // Check each roaming enemy
+        for (const sprite of enemySprites) {
+            const dx = sprite.x - px;
+            const dy = sprite.y - py;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist < 28) {  // collision radius in pixels
+                // Flash the screen
+                overworldMap.style.animation = 'interceptFlash 0.6s ease-out';
+                setTimeout(() => { overworldMap.style.animation = ''; }, 600);
+
+                // Drain 8 energy and show toast
+                const stats = window._playerStats || { energy: 50, hp: 100, maxHp: 100, maxEnergy: 50 };
+                if (stats.energy > 0) {
+                    const newEnergy = Math.max(0, stats.energy - 8);
+                    window._playerStats = { ...stats, energy: newEnergy };
+                    updateHUD({ energy: newEnergy });
+                    showToast('Enemy intercept! -8 Energy', 'danger');
+                    addChatMsg('🔴 Intercepted by a roaming enemy! Energy drained.', 'system');
+                    // Briefly teleport the sprite away to avoid repeated hits
+                    sprite.moveTo(
+                        sprite.x + (Math.random() - 0.5) * 120,
+                        sprite.y + (Math.random() - 0.5) * 120,
+                        300
+                    );
+                }
+                break; // Only one intercept per frame
+            }
         }
     }
     
@@ -1105,6 +1333,190 @@ function playSFX(eventName) {
     } catch (e) { /* skip if blocked */ }
 }
 
+// ── Typewriter effect for narration ─────────────────────────────────────────
+let _typewriterTimer = null;
+
+// ── Heartbeat Audio (Web Audio API synthetic) ──────────────────────────────
+let _audioCtx = null;
+let _heartbeatInterval = null;
+
+function getAudioCtx() {
+    if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return _audioCtx;
+}
+
+function _playThump(ctx, time, freq = 60, duration = 0.08, gain = 0.35) {
+    const osc = ctx.createOscillator();
+    const env = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, time);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.4, time + duration);
+    env.gain.setValueAtTime(gain, time);
+    env.gain.exponentialRampToValueAtTime(0.001, time + duration * 1.4);
+    osc.connect(env);
+    env.connect(ctx.destination);
+    osc.start(time);
+    osc.stop(time + duration * 1.5);
+}
+
+function startHeartbeat() {
+    if (_heartbeatInterval) return; // already running
+    _heartbeatInterval = setInterval(() => {
+        if (bgmMuted) return;
+        try {
+            const ctx = getAudioCtx();
+            const now = ctx.currentTime;
+            _playThump(ctx, now,       60, 0.08, 0.3);   // LUB
+            _playThump(ctx, now + 0.13, 50, 0.06, 0.2);  // DUB
+        } catch(e) { /* ignore if audio blocked */ }
+    }, 900); // ~66 BPM
+}
+
+function stopHeartbeat() {
+    if (_heartbeatInterval) { clearInterval(_heartbeatInterval); _heartbeatInterval = null; }
+}
+
+// ── Minimap Renderer ──────────────────────────────────────────────────────
+let _minimapInterval = null;
+
+function startMinimap() {
+    if (_minimapInterval) clearInterval(_minimapInterval);
+    _minimapInterval = setInterval(drawMinimap, 2000);
+    drawMinimap(); // draw immediately
+}
+
+function drawMinimap() {
+    const canvas = document.getElementById('minimap-canvas');
+    if (!canvas || !worldData) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    // Background
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(0, 0, W, H);
+
+    const conquered = window._conqueredRegions || [];
+    const DIFF_CLR = { easy:'#00ffcc', medium:'#ffcc00', hard:'#ff4444' };
+
+    // Draw regions
+    (worldData.regions || []).forEach(r => {
+        const px = ((r.position?.x || 50) / 100) * W;
+        const py = ((r.position?.y || 50) / 100) * H;
+        const isConquered = conquered.includes(r.id);
+        const isBoss = r.difficulty === 'hard' &&
+            worldData.regions.indexOf(r) === worldData.regions.length - 1;
+        ctx.beginPath();
+        ctx.arc(px, py, isBoss ? 5 : 3, 0, Math.PI * 2);
+        ctx.fillStyle = isConquered ? '#00ff88' : (isBoss ? '#ffcc00' : DIFF_CLR[r.difficulty] || '#555');
+        ctx.globalAlpha = isConquered ? 1 : 0.6;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+    });
+
+    // Draw player dot
+    if (typeof playerPos !== 'undefined') {
+        const ppx = (playerPos.x / 100) * W;
+        const ppy = (playerPos.y / 100) * H;
+        ctx.beginPath();
+        ctx.arc(ppx, ppy, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = '#00ffcc';
+        ctx.shadowBlur = 6;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+}
+
+function stopMinimap() {
+    if (_minimapInterval) { clearInterval(_minimapInterval); _minimapInterval = null; }
+}
+
+// ── Telemetry Boss Prompt Enrichment ─────────────────────────────────────
+function enrichBossAction(action, regionId) {
+    // Only inject telemetry on boss nodes
+    if (!worldData) return action;
+    const regions = worldData.regions || [];
+    const bossRegion = regions[regions.length - 1];
+    if (!bossRegion || bossRegion.id !== regionId) return action;
+    const summary = telemetrySummary();
+    return `[PLAYER TELEMETRY: ${summary}] ${action}`;
+}
+
+function typewriterEffect(el, text, outcome = 'partial') {
+    if (_typewriterTimer) clearInterval(_typewriterTimer);
+    window._lastOutcome = outcome;
+    el.className = 'narration-block outcome-' + outcome;
+    el.innerHTML = '';
+
+    let i = 0;
+    const cursor = document.createElement('span');
+    cursor.className = 'typewriter-cursor';
+    el.appendChild(cursor);
+
+    const SPEED = 22; // ms per character
+
+    _typewriterTimer = setInterval(() => {
+        if (i < text.length) {
+            // Insert char before cursor
+            el.insertBefore(document.createTextNode(text[i]), cursor);
+            i++;
+        } else {
+            clearInterval(_typewriterTimer);
+            setTimeout(() => cursor.remove(), 800); // remove cursor after done
+        }
+    }, SPEED);
+}
+
+// ── Inventory Panel ──────────────────────────────────────────────────────────
+function renderInventory(items) {
+    const list = document.getElementById('inventory-list');
+    if (!list) return;
+    list.innerHTML = '';
+    if (!items || items.length === 0) {
+        list.innerHTML = '<span style="color:#444; font-size:11px;">Empty</span>';
+        return;
+    }
+    items.forEach(item => {
+        const el = document.createElement('div');
+        el.className = 'inv-loot-item';
+        el.textContent = `▸ ${item}`;
+        list.appendChild(el);
+    });
+}
+
+// ── Quest Tracker Panel ──────────────────────────────────────────────────────
+function renderQuestTracker(quests) {
+    const list = document.getElementById('quest-list');
+    if (!list || !quests) return;
+    list.innerHTML = '';
+
+    if (quests.length === 0) {
+        list.innerHTML = '<span style="color:#444; font-size:10px;">No active quests</span>';
+        return;
+    }
+
+    // Look up region names from worldData
+    const regionMap = {};
+    (worldData?.regions || []).forEach(r => { regionMap[r.id] = r.name; });
+
+    quests.forEach(q => {
+        const item = document.createElement('div');
+        item.className = `quest-item${q.status === 'complete' ? ' complete' : ''}`;
+
+        const dot = document.createElement('span');
+        dot.className = 'quest-dot';
+        item.appendChild(dot);
+
+        const info = document.createElement('span');
+        const regionName = regionMap[q.region_id] || q.region_id;
+        info.innerHTML = `${q.title}<span class="quest-region">${regionName}</span>`;
+        item.appendChild(info);
+
+        list.appendChild(item);
+    });
+}
+
 async function sendAction(actionStr, bypassRegionId = null) {
     if (!insideNode) return; // ignore overworld clicks if any leak
     
@@ -1121,7 +1533,7 @@ async function sendAction(actionStr, bypassRegionId = null) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                action: actionStr,
+                action: enrichBossAction(actionStr, currentRegionId),
                 region_id: bypassRegionId || currentRegionId,
                 session_id: currentSessionId
             })
@@ -1139,17 +1551,61 @@ async function sendAction(actionStr, bypassRegionId = null) {
 
             if (dmText) { dmText.innerText = dmResponse.narration; dmText.style.color = textColor; }
             if (pNarration) {
-                pNarration.innerText = dmResponse.narration;
-                window._lastOutcome = dmResponse.outcome || 'partial';
-                pNarration.className = 'narration-block outcome-' + window._lastOutcome;
+                // ── Typewriter effect ──────────────────────────────────────────
+                const outcome = dmResponse.outcome || 'partial';
+                window._lastOutcome = outcome;
+                typewriterEffect(pNarration, dmResponse.narration, outcome);
             }
 
             // Play outcome SFX
             playSFX(dmResponse.outcome || 'partial');
 
+            // ── Record telemetry ───────────────────────────────────────────────
+            const hpBefore = window._playerStats?.hp ?? 100;
+            const hpAfterRaw = data.hp;
+            telemetryRecord(dmResponse.outcome || 'partial', hpBefore, hpAfterRaw);
+
+            // ── Apply class perks ──────────────────────────────────────────────
+            let finalHp = hpAfterRaw;
+            let finalXp = data.xp;
+            const perk = selectedClass ? CLASSES[selectedClass]?.perk : null;
+            if (perk === 'armor' && dmResponse.outcome === 'failure') {
+                finalHp = Math.min(window._playerStats.maxHp, finalHp + 5);
+                showToast('⚔️ Knight Armor: -5 dmg blocked!', 'info');
+            }
+            if (perk === 'paladin' && dmResponse.outcome === 'success') {
+                finalHp = Math.min(window._playerStats.maxHp, finalHp + 8);
+                showToast('💛 Paladin: +8 HP restored!', 'success');
+            }
+            if (perk === 'cunning' && dmResponse.outcome !== 'failure') {
+                finalXp = (finalXp || 0) + 15;
+                showToast('⚡ Rogue cunning: +15 XP!', 'info');
+            }
+            if (perk === 'scholar' && dmResponse.outcome === 'success') {
+                finalXp = (finalXp || 0) + 20;
+                showToast('✨ Mage mastery: +20 XP!', 'info');
+            }
+
             // Update HUD (single source of truth)
-            updateHUD({ xp: data.xp, hp: data.hp, energy: data.energy });
-            window._playerStats = { xp: data.xp, hp: data.hp, energy: data.energy, maxHp: 100, maxEnergy: 50 };
+            const maxHp = window._playerStats?.maxHp ?? 100;
+            const maxEn = window._playerStats?.maxEnergy ?? 50;
+            updateHUD({ xp: finalXp, hp: finalHp, energy: data.energy });
+            window._playerStats = { xp: finalXp, hp: finalHp, energy: data.energy, maxHp, maxEnergy: maxEn };
+
+            // Update inventory panel
+            if (data.inventory && data.inventory.length > 0) {
+                renderInventory(data.inventory);
+            }
+            // Update quest tracker
+            if (data.active_quests) {
+                renderQuestTracker(data.active_quests);
+            }
+
+            // On conquest, record telemetry + refresh minimap
+            if (data.stage === 'complete' || dmResponse.region_status === 'conquered') {
+                TELEMETRY.nodesConquered++;
+                drawMinimap();
+            }
 
             // Defeat: HP hit 0 → show defeat overlay (v2)
             if (data.defeated && currentRegionId) {
