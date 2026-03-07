@@ -84,10 +84,11 @@ async def _call_mistral_with_retry(messages: list) -> str:
 
 # ── Main Entry Point ───────────────────────────────────────────────────────────
 
-async def process_action(action: str, current_state: dict, region_id: str = "") -> dict:
+async def process_action(action: str, current_state: dict, region_id: str = "", turn_number: int = 1) -> dict:
     """
     Calls Ministral 8B to narrate a stage-driven adventure beat.
     Retries up to 3x on transient errors, then returns FALLBACK_RESPONSE.
+    turn_number is injected so the DM enforces the 7-turn arc reliably.
     """
     system_prompt = get_dm_system_prompt()
 
@@ -100,6 +101,14 @@ async def process_action(action: str, current_state: dict, region_id: str = "") 
 
     # Only send last 2 log entries to avoid repetition
     recent_log = current_state.get("log", [])[-2:]
+
+    # Determine the expected stage based on turn number
+    if turn_number <= 2:
+        expected_stage_hint = "approach"
+    elif turn_number <= 6:
+        expected_stage_hint = "challenge"
+    else:
+        expected_stage_hint = "complete"
 
     # Tight context — only what the AI needs
     context = {
@@ -116,7 +125,12 @@ async def process_action(action: str, current_state: dict, region_id: str = "") 
         "player_energy": current_state["players"][0]["energy"],
         "player_xp": current_state["players"][0]["xp"],
         "recent_history": recent_log,
-        "conquered_regions": current_state.get("conquered_regions", [])
+        "conquered_regions": current_state.get("conquered_regions", []),
+        "turn_number": turn_number,
+        "arc_directive": (
+            f"TURN {turn_number}/7. stage MUST be '{expected_stage_hint}'. "
+            + ("Return EMPTY choices [] and set region_status = 'conquered'." if turn_number >= 7 else "")
+        )
     }
 
     user_message = f"""
@@ -127,6 +141,7 @@ Player's chosen action:
 {action}
 
 Respond with the next story beat, stage, and 3 specific choices. Do NOT repeat anything from recent_history.
+CRITICAL: arc_directive in Context MUST be obeyed exactly.
     """
 
     messages = [
