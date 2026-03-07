@@ -577,7 +577,58 @@
       </div>
       <!-- end #game-body -->
 
+      <!-- CHAPTER TRANSITION OVERLAY (story bridge between levels) -->
+      <div id="chapter-overlay" class="hidden" style="
+        position: fixed; inset: 0; z-index: 350;
+        background: rgba(0,0,0,0.97);
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        padding: 40px; text-align: center;
+      ">
+        <!-- Top cinema bar -->
+        <div style="position:absolute; top:0; left:0; right:0; height:60px; background:#000; border-bottom:1px solid #222;"></div>
+        <div style="position:absolute; bottom:0; left:0; right:0; height:60px; background:#000; border-top:1px solid #222;"></div>
+
+        <!-- Chapter cleared badge -->
+        <div id="chapter-cleared-badge" style="
+          font-family:'Press Start 2P',monospace; font-size:10px;
+          color:#888; letter-spacing:4px; text-transform:uppercase;
+          margin-bottom:28px;
+        ">◆ CHAPTER CLEARED ◆</div>
+
+        <!-- Outro text (what just happened) -->
+        <p id="chapter-outro-text" style="
+          font-family:'Share Tech Mono',monospace; font-size:1.05em;
+          color:#ccc; line-height:1.9; max-width:600px;
+          border-left:3px solid #00ffcc; padding-left:20px;
+          text-align:left; margin-bottom:40px;
+        "></p>
+
+        <!-- Next chapter teaser (hidden for final chapter) -->
+        <div id="chapter-next-wrap" style="margin-bottom:32px;">
+          <div id="chapter-next-label" style="
+            font-family:'Press Start 2P',monospace; font-size:8px;
+            color:#555; letter-spacing:3px; margin-bottom:12px;
+          ">NEXT CHAPTER</div>
+          <div id="chapter-next-name" style="
+            font-family:'Press Start 2P',monospace; font-size:14px;
+            color:var(--theme-primary); text-shadow:0 0 18px var(--theme-primary);
+            letter-spacing:2px; margin-bottom:16px;
+          "></div>
+          <p id="chapter-next-intro" style="
+            font-family:'Share Tech Mono',monospace; font-size:0.95em;
+            color:#aaa; line-height:1.8; max-width:520px; font-style:italic;
+          "></p>
+        </div>
+
+        <button id="btn-chapter-continue" class="primary-btn" style="
+          margin-top:10px; border-color:var(--theme-primary);
+          color:var(--theme-primary); font-size:0.85em; letter-spacing:3px;
+        ">ENTER NEXT CHAPTER →</button>
+      </div>
+
       <!-- TROPHY OVERLAY (v2 confetti + SVG trophy) -->
+
       <div
         id="trophy-overlay"
         class="hidden glass-panel"

@@ -135,20 +135,35 @@ async def player_action(request: ActionRequest):
         if state_changes['loot_dropped']:
             player['inventory'].extend(state_changes['loot_dropped'])
             
+        story_bridge = None
         if state_changes['region_status'] == "conquered":
             if request.region_id not in session.get('conquered_regions', []):
                 session['conquered_regions'].append(request.region_id)
             # Complete any quests tied to this region + award bonus XP
             complete_quest_for_region(request.session_id, request.region_id)
-            quest_bonus = 25  # bonus XP for quest completion
+            quest_bonus = 25
             player['xp'] += quest_bonus
             logger.info(f"[quests] Region {request.region_id} conquered — quest complete, +{quest_bonus} XP")
-            # Reset turn counter for if player revisits
             reset_region_turn(request.session_id, request.region_id)
-             
+
+            # ── Build story bridge from chapter_outro + next chapter_intro ──
+            world = session.get('world', {})
+            regions = world.get('regions', [])
+            conquered_id = request.region_id
+            region_idx = next((i for i, r in enumerate(regions) if r.get('id') == conquered_id), -1)
+            current_region = regions[region_idx] if region_idx >= 0 else {}
+            next_region = regions[region_idx + 1] if region_idx >= 0 and region_idx + 1 < len(regions) else None
+
+            story_bridge = {
+                "outro": current_region.get("chapter_outro", ""),
+                "next_region_name": next_region.get("name", "") if next_region else None,
+                "next_intro": next_region.get("chapter_intro", "") if next_region else None,
+                "is_final": next_region is None,
+            }
+
         return {
-            "status": "success", 
-            "response": dm_response, 
+            "status": "success",
+            "response": dm_response,
             "xp": player['xp'],
             "hp": player['hp'],
             "energy": player['energy'],
@@ -157,7 +172,8 @@ async def player_action(request: ActionRequest):
             "stage": dm_response.get("stage", "approach"),
             "choices": dm_response.get("choices", []),
             "defeated": defeated,
-            "turn_number": turn_number
+            "turn_number": turn_number,
+            "story_bridge": story_bridge,
         }
     except Exception as e:
         logger.error(f"Error processing action: {e}")

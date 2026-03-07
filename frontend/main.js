@@ -1019,7 +1019,92 @@ function getFactionPortraitSVG(faction, size = 72) {
 }
 
 // --- NODE ENCOUNTERS ---
+// ── Chapter Intro (shown when player enters a new region) ──────────────────
+function showChapterIntro(regionName, introText) {
+    if (!introText) return;
+    // Show a brief cinematic bar at the top with the intro text
+    const existing = document.getElementById('chapter-intro-bar');
+    if (existing) existing.remove();
+
+    const bar = document.createElement('div');
+    bar.id = 'chapter-intro-bar';
+    bar.style.cssText = `
+        position:fixed; top:70px; left:50%; transform:translateX(-50%);
+        max-width:680px; width:90%; z-index:500;
+        background:rgba(0,0,0,0.92);
+        border:1px solid var(--theme-primary);
+        border-radius:8px; padding:18px 24px;
+        font-family:'Share Tech Mono',monospace;
+        font-size:0.9em; color:#ddd; line-height:1.8;
+        box-shadow:0 0 30px var(--theme-glow);
+        animation: fadeInDown 0.5s ease;
+    `;
+    bar.innerHTML = `
+        <div style="font-family:'Press Start 2P',monospace; font-size:8px; color:var(--theme-primary); letter-spacing:3px; margin-bottom:10px;">
+            ◆ ${regionName.toUpperCase()}
+        </div>
+        <div id="chapter-intro-typewriter"></div>
+    `;
+    document.body.appendChild(bar);
+
+    // Typewriter effect
+    const target = bar.querySelector('#chapter-intro-typewriter');
+    let i = 0;
+    const tick = setInterval(() => {
+        target.innerText = introText.slice(0, ++i);
+        if (i >= introText.length) {
+            clearInterval(tick);
+            setTimeout(() => bar.remove(), 5000); // Auto-dismiss after 5s
+        }
+    }, 22);
+}
+
+// ── Chapter Transition Overlay (shown on conquest, bridges to next level) ──
+function showChapterTransition(bridge, onContinue) {
+    const overlay = document.getElementById('chapter-overlay');
+    const outroEl = document.getElementById('chapter-outro-text');
+    const nextWrap = document.getElementById('chapter-next-wrap');
+    const nextName = document.getElementById('chapter-next-name');
+    const nextIntro = document.getElementById('chapter-next-intro');
+    const btn = document.getElementById('btn-chapter-continue');
+    const badge = document.getElementById('chapter-cleared-badge');
+
+    if (!overlay) { onContinue && onContinue(); return; }
+
+    // Fill content
+    outroEl.innerText = '';
+    overlay.classList.remove('hidden');
+
+    if (bridge.is_final) {
+        badge.innerText = '◆ WORLD CONQUERED ◆';
+        badge.style.color = '#ffcc00';
+        nextWrap.style.display = 'none';
+        btn.innerText = 'CLAIM VICTORY →';
+    } else {
+        badge.innerText = '◆ CHAPTER CLEARED ◆';
+        badge.style.color = '#888';
+        nextWrap.style.display = 'block';
+        nextName.innerText = (bridge.next_region_name || '').toUpperCase();
+        nextIntro.innerText = bridge.next_intro || '';
+        btn.innerText = 'ENTER NEXT CHAPTER →';
+    }
+
+    // Typewriter for outro
+    const outro = bridge.outro || 'The region falls silent…';
+    let i = 0;
+    const tick = setInterval(() => {
+        outroEl.innerText = outro.slice(0, ++i);
+        if (i >= outro.length) clearInterval(tick);
+    }, 28);
+
+    btn.onclick = () => {
+        overlay.classList.add('hidden');
+        onContinue && onContinue();
+    };
+}
+
 function showTrophy(title, desc, isWorldVictory = false) {
+
     const overlay = document.getElementById('trophy-overlay');
     const confettiEl = document.getElementById('trophy-confetti');
     document.getElementById('trophy-title').innerText = title;
@@ -1128,6 +1213,12 @@ function triggerNodeEncounter(region) {
 
     overworldMap.classList.add('hidden');
     regionEncounter.classList.remove('hidden');
+
+    // Show chapter intro for fresh (not-yet-conquered) regions
+    const alreadyConquered = (window._conqueredRegions || []).includes(region.id);
+    if (!alreadyConquered && region.chapter_intro) {
+        showChapterIntro(region.name, region.chapter_intro);
+    }
 
     // Populate v2 panel
     const pFactionName = document.getElementById('v2-faction-name');
@@ -1620,7 +1711,23 @@ async function sendAction(actionStr, bypassRegionId = null) {
             if (data.stage === 'complete' || dmResponse.region_status === 'conquered') {
                 TELEMETRY.nodesConquered++;
                 drawMinimap();
+
+                // Show cinematic chapter transition if the backend sent a story bridge
+                if (data.story_bridge) {
+                    const bridge = data.story_bridge;
+                    setTimeout(() => {
+                        showChapterTransition(bridge, () => {
+                            // After player clicks continue, rebuild map
+                            setTimeout(() => setupMapEngine(), 300);
+                            if (bridge.is_final) {
+                                showTrophy('🏆 WORLD CONQUERED 🏆',
+                                    `You have secured ${worldData.world_name}!`, true);
+                            }
+                        });
+                    }, 1200); // Small delay so DM narration finishes displaying
+                }
             }
+
 
             // Defeat: HP hit 0 → show defeat overlay (v2)
             if (data.defeated && currentRegionId) {
