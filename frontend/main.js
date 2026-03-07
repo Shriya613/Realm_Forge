@@ -402,11 +402,9 @@ function applyWorldTheme(prompt = '', worldName = '') {
 function enterGame() {
     uiLayer.classList.remove('active');
     
-    const bgm = document.getElementById('bg-music');
-    if (bgm) { bgm.volume = 0.3; bgm.play().catch(e => console.log("Audio play blocked", e)); }
-    
     // Apply world theme from prompt
     applyWorldTheme(worldData?.prompt || '', worldData?.world_name || '');
+
 
     setTimeout(() => {
         uiLayer.classList.add('hidden');
@@ -491,13 +489,26 @@ function enterGame() {
             tog.innerText = panel.classList.contains('collapsed') ? '▾' : '▴';
         });
 
+        // ── BGM — start playing now that we have a user gesture ──────────
+        const bgm = document.getElementById('bg-music');
+        if (bgm && !bgmMuted) {
+            bgm.volume = 0.35;
+            bgm.play().catch(e => console.warn('[BGM] Autoplay blocked:', e));
+        }
+
         // ── BGM Mute button ───────────────────────────────────────────────
         const btnBgm = document.getElementById('btn-bgm-toggle');
         if (btnBgm) {
             btnBgm.addEventListener('click', () => {
                 const bgm = document.getElementById('bg-music');
                 bgmMuted = !bgmMuted;
-                if (bgm) { bgm.muted = bgmMuted; }
+                if (bgm) {
+                    bgm.muted = bgmMuted;
+                    if (!bgmMuted) {
+                        bgm.volume = 0.35;
+                        bgm.play().catch(() => {});  // resume if paused
+                    }
+                }
                 btnBgm.textContent = bgmMuted ? '🔇 BGM' : '🎵 BGM';
                 btnBgm.classList.toggle('hud-btn-active', !bgmMuted);
                 btnBgm.classList.toggle('muted', bgmMuted);
