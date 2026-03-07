@@ -1,5 +1,83 @@
 /* Base and Reset */
-@import url("https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@300;400;600&family=Share+Tech+Mono&family=Press+Start+2P&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;600;700;900&family=Share+Tech+Mono&family=Press+Start+2P&display=swap");
+
+/* ── Dynamic Theme Variables (default: cyberpunk teal) ──────────────── */
+:root {
+  --theme-primary:   #00ffcc;
+  --theme-secondary: #0088ff;
+  --theme-accent:    #ff00cc;
+  --theme-bg1:       #0a1828;
+  --theme-bg2:       #060810;
+  --theme-node-easy:   #00ffcc;
+  --theme-node-medium: #ffcc00;
+  --theme-node-hard:   #ff4444;
+  --theme-glow:      rgba(0,255,204,0.5);
+}
+
+/* Fantasy (gold/purple) */
+body.theme-fantasy {
+  --theme-primary:   #e8c455;
+  --theme-secondary: #9b59b6;
+  --theme-accent:    #e74c3c;
+  --theme-bg1:       #1a0e2e;
+  --theme-bg2:       #0d0818;
+  --theme-node-easy:   #e8c455;
+  --theme-node-medium: #9b59b6;
+  --theme-node-hard:   #e74c3c;
+  --theme-glow:      rgba(232,196,85,0.5);
+}
+
+/* Steampunk (amber/bronze) */
+body.theme-steampunk {
+  --theme-primary:   #d4892a;
+  --theme-secondary: #8b6914;
+  --theme-accent:    #c0392b;
+  --theme-bg1:       #1a0f00;
+  --theme-bg2:       #0d0800;
+  --theme-node-easy:   #d4892a;
+  --theme-node-medium: #e8c455;
+  --theme-node-hard:   #c0392b;
+  --theme-glow:      rgba(212,137,42,0.5);
+}
+
+/* Horror (blood red) */
+body.theme-horror {
+  --theme-primary:   #cc0000;
+  --theme-secondary: #880000;
+  --theme-accent:    #ff4400;
+  --theme-bg1:       #120000;
+  --theme-bg2:       #080000;
+  --theme-node-easy:   #cc4444;
+  --theme-node-medium: #cc0000;
+  --theme-node-hard:   #ff0000;
+  --theme-glow:      rgba(204,0,0,0.5);
+}
+
+/* Nature/Forest (green) */
+body.theme-nature {
+  --theme-primary:   #00cc55;
+  --theme-secondary: #227744;
+  --theme-accent:    #88ee00;
+  --theme-bg1:       #041208;
+  --theme-bg2:       #020a04;
+  --theme-node-easy:   #00cc55;
+  --theme-node-medium: #88ee00;
+  --theme-node-hard:   #cc5500;
+  --theme-glow:      rgba(0,204,85,0.5);
+}
+
+/* Space (deep blue/violet) */
+body.theme-space {
+  --theme-primary:   #4488ff;
+  --theme-secondary: #aa44ff;
+  --theme-accent:    #00ccff;
+  --theme-bg1:       #000818;
+  --theme-bg2:       #00040f;
+  --theme-node-easy:   #4488ff;
+  --theme-node-medium: #aa44ff;
+  --theme-node-hard:   #ff4488;
+  --theme-glow:      rgba(68,136,255,0.5);
+}
 
 body {
   margin: 0;
@@ -7,11 +85,13 @@ body {
   background-color: #0b0f19;
   color: #fff;
   font-family: "Inter", sans-serif;
-  font-size: 16px;
+  font-size: 15px;
+  font-weight: 600;
   overflow: hidden;
   height: 100vh;
   width: 100vw;
 }
+
 
 #dynamic-bg {
   position: absolute;
@@ -261,27 +341,114 @@ h2 {
   pointer-events: none;
 }
 
-/* HUD Header */
+/* ── New 3-Column HUD ──────────────────────────────────────────────────────── */
 #hud-top {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   padding: 10px 20px;
-  margin: 16px 20px 0;
-  font-family: "Share Tech Mono", monospace;
-  font-size: 1.05em;
-  letter-spacing: 1px;
-  color: #8ab4f8;
-  border-bottom: 2px solid rgba(0, 255, 204, 0.3);
+  margin: 10px 16px 0;
+  background: rgba(0,0,0,0.75);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  backdrop-filter: blur(16px);
+  flex-shrink: 0;
+  gap: 10px;
+  min-height: 60px;
+}
+
+#hud-left, #hud-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
   flex-shrink: 0;
 }
-.highlight {
-  color: #00ffcc;
-  font-weight: bold;
+
+#hud-center {
+  flex: 1;
+  text-align: center;
 }
-.status-ok {
-  color: #00ff00;
-  text-shadow: 0 0 8px #00ff00;
+
+.hud-world-name {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--theme-primary);
+  text-shadow: 0 0 20px var(--theme-primary), 0 0 40px var(--theme-glow);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+  line-height: 1;
 }
+
+.hud-center-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.75);
+}
+
+.hud-stat {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.hud-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.5);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.hud-val {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.hud-max {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 13px;
+  color: rgba(255,255,255,0.35);
+  margin-left: -2px;
+}
+
+.hud-name-val  { color: #ffffff; text-shadow: 0 0 10px rgba(255,255,255,0.5); font-size: 16px; }
+.hud-hp        { color: #ff6666; text-shadow: 0 0 10px #ff444488; }
+.hud-en        { color: #ffdd44; text-shadow: 0 0 10px #ffcc0088; }
+.hud-xp        { color: var(--theme-primary); text-shadow: 0 0 10px var(--theme-glow); }
+.status-ok     { color: #44ff99; text-shadow: 0 0 10px #00ff8888; font-size:14px; }
+
+.hud-btn {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 13px;
+  border-radius: 5px;
+  border: 1px solid rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: all 0.2s;
+  white-space: nowrap;
+  text-shadow: none;
+}
+.hud-btn:hover      { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.6); }
+.hud-btn-active     { color: var(--theme-primary); border-color: var(--theme-primary); box-shadow: 0 0 8px var(--theme-glow); }
+.hud-btn.muted      { color: rgba(255,255,255,0.3); border-color: rgba(255,255,255,0.1); }
+
+.highlight { color: var(--theme-primary); font-weight: bold; }
+
 
 /* Game body row: map/content + chat sidebar side by side */
 #game-body {
@@ -540,41 +707,48 @@ h3.panel-header {
 
 .avatar-entity {
   position: absolute;
-  width: 32px;
-  height: 32px;
   border-radius: 50%;
   transform: translate(-50%, -50%);
   display: flex;
   justify-content: center;
   align-items: center;
-  font-size: 24px;
   z-index: 100;
-  transition:
-    top 0.1s linear,
-    left 0.1s linear;
+  transition: top 0.1s linear, left 0.1s linear;
 }
 
+/* Player — large emoji character with vivid ring */
 .avatar-entity.player {
-  background: white;
-  border: 2px solid #00ffcc;
-  box-shadow: 0 4px 10px rgba(0, 255, 204, 0.4);
+  width: 52px;
+  height: 52px;
+  font-size: 30px;
+  line-height: 1;
+  background: rgba(0,0,0,0.7);
+  border: 3px solid var(--theme-primary);
+  box-shadow:
+    0 0 20px var(--theme-primary),
+    0 0 40px var(--theme-glow),
+    inset 0 0 10px rgba(0,0,0,0.8);
 }
-.avatar-entity.player::after {
-  content: "P";
-  font-family: "Press Start 2P", monospace;
-  font-size: 12px;
+/* Fallback 'P' if no class selected */
+.avatar-entity.player:empty::after {
+  content: "🧙";
+  font-size: 26px;
 }
 
+/* Enemy — red menacing */
 .avatar-entity.enemy {
-  background: white;
+  width: 40px;
+  height: 40px;
+  font-size: 22px;
+  background: rgba(20,0,0,0.75);
   border: 2px solid #ff3333;
-  box-shadow: 0 4px 10px rgba(255, 51, 51, 0.4);
+  box-shadow: 0 0 16px rgba(255,51,51,0.6), 0 0 32px rgba(255,0,0,0.3);
 }
-.avatar-entity.enemy::after {
-  content: "!";
-  font-family: "Press Start 2P", monospace;
-  font-size: 14px;
+.avatar-entity.enemy:empty::after {
+  content: "👹";
+  font-size: 20px;
 }
+
 
 /* Interactive Help Button */
 .help-btn {
@@ -623,32 +797,32 @@ h3.panel-header {
   z-index: 10;
 }
 
-/* Difficulty colour variants */
+/* Difficulty colour variants — uses theme CSS vars */
 .overworld-node.diff-easy {
-  border: 2px solid #00ffcc;
-  background: radial-gradient(circle, #111, #080808);
-  box-shadow: 0 0 10px #00ffcc55;
+  border: 3px solid var(--theme-node-easy);
+  background: radial-gradient(circle, #1a1a2e, #0d0d1a);
+  box-shadow: 0 0 18px var(--theme-node-easy), inset 0 0 12px rgba(0,0,0,0.8);
 }
 .overworld-node.diff-medium {
-  border: 2px solid #ffcc00;
-  background: radial-gradient(circle, #111, #080808);
-  box-shadow: 0 0 10px #ffcc0055;
+  border: 3px solid var(--theme-node-medium);
+  background: radial-gradient(circle, #1a1800, #0d0d0a);
+  box-shadow: 0 0 18px var(--theme-node-medium), inset 0 0 12px rgba(0,0,0,0.8);
 }
 .overworld-node.diff-hard {
-  border: 2px solid #ff4444;
-  background: radial-gradient(circle, #111, #080808);
-  box-shadow: 0 0 10px #ff444455;
+  border: 3px solid var(--theme-node-hard);
+  background: radial-gradient(circle, #1a0808, #0d0505);
+  box-shadow: 0 0 18px var(--theme-node-hard), inset 0 0 12px rgba(0,0,0,0.8);
 }
 .overworld-node.conquered {
-  border: 2px solid #00ff88;
-  background: radial-gradient(circle, #00ff8822, #00ff8808);
-  box-shadow: 0 0 10px #00ff8855;
+  border: 3px solid #00ff88;
+  background: radial-gradient(circle, #00ff8833, #00200f);
+  box-shadow: 0 0 20px #00ff88, inset 0 0 12px rgba(0,255,136,0.15);
 }
 .overworld-node.locked {
-  border: 2px solid #222;
-  background: rgba(0, 0, 0, 0.5);
+  border: 2px solid #333;
+  background: rgba(0,0,0,0.6);
   box-shadow: none;
-  opacity: 0.35;
+  opacity: 0.45;
   cursor: default;
 }
 
@@ -677,34 +851,24 @@ h3.panel-header {
 /* Name label below node */
 .node-label {
   position: absolute;
-  top: 105%;
+  top: 108%;
   left: 50%;
   transform: translateX(-50%);
   white-space: nowrap;
-  font-family: "Press Start 2P", monospace;
-  font-size: 8px;
-  color: #00ffcc;
-  text-shadow: 0 0 6px #00ffcc;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 0 8px var(--theme-node-easy), 0 1px 3px rgba(0,0,0,0.9);
   pointer-events: none;
-  opacity: 0.85;
-  transition: opacity 0.2s;
+  opacity: 1;
+  letter-spacing: 0.5px;
 }
-.overworld-node.diff-medium .node-label {
-  color: #ffcc00;
-  text-shadow: 0 0 6px #ffcc00;
-}
-.overworld-node.diff-hard .node-label {
-  color: #ff4444;
-  text-shadow: 0 0 6px #ff4444;
-}
-.overworld-node.conquered .node-label {
-  color: #00ff88;
-  text-shadow: 0 0 6px #00ff88;
-}
-.overworld-node.locked .node-label {
-  color: #333;
-  text-shadow: none;
-}
+.overworld-node.diff-medium .node-label { text-shadow: 0 0 8px var(--theme-node-medium), 0 1px 3px rgba(0,0,0,0.9); }
+.overworld-node.diff-hard   .node-label { text-shadow: 0 0 8px var(--theme-node-hard),   0 1px 3px rgba(0,0,0,0.9); }
+.overworld-node.conquered   .node-label { color:#00ff88; text-shadow: 0 0 8px #00ff88, 0 1px 3px rgba(0,0,0,0.9); }
+.overworld-node.locked      .node-label { color:#555; text-shadow: none; }
+
 
 /* Difficulty badge top-right */
 .node-diff-badge {
@@ -1175,11 +1339,12 @@ h3.panel-header {
   user-select: none;
 }
 .sprite-icon {
-  font-size: 20px;
-  font-family: "Press Start 2P", monospace;
+  font-size: 28px;
+  font-family: 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif;
   animation: spriteIdle 1s ease-in-out infinite alternate;
-  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.8));
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.9));
   transition: transform 0.2s;
+  line-height: 1;
 }
 .sprite-shadow {
   width: 14px;
