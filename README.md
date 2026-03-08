@@ -1,6 +1,6 @@
 # Realm Forge
 
-An AI-powered turn-based adventure game where every world, story, and encounter is generated live by [Mistral AI](https://mistral.ai). No two playthroughs are the same.
+An AI-powered turn-based adventure game where every world, story, and encounter is generated live by [Mistral AI](https://mistral.ai). No two playthroughs are the same. Can see demo by clicking realm_forge.mp4.
 Built for Mistral AI hackathon 2026
 
 ---
